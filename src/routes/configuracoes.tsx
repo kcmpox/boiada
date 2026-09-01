@@ -30,6 +30,7 @@ import {
   type Payment,
   type CommissionPayment,
   type DriverEntry,
+  type Note,
   DESTINATION_LABELS,
   DESTINATION_PREFIX,
 } from "@/lib/storage";
