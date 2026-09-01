@@ -725,10 +725,8 @@ function SlaughterhousesSection() {
       name: form.name.trim(),
       city: form.city.trim() || undefined,
       state: form.state.trim().toUpperCase() || undefined,
-      cnpj: form.cnpj.trim() || undefined,
       phone: form.phone.trim() || undefined,
       contact: form.contact.trim() || undefined,
-      destination: form.destination || undefined,
       notes: form.notes.trim() || undefined,
       active: form.active,
     };
