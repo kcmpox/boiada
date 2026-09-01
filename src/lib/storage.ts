@@ -176,6 +176,22 @@ export interface TollLocation {
   longitude?: number;
 }
 
+/** Frigorífico cadastrado (unidade de abate / destino de entrega). */
+export interface Slaughterhouse {
+  id: string;
+  name: string;
+  city?: string;
+  state?: string;
+  cnpj?: string;
+  phone?: string;
+  contact?: string;
+  destination?: Destination;
+  notes?: string;
+  active: boolean;
+}
+
+
+
 export const RENT_PERCENT = 0.1;
 
 export interface Payment {
