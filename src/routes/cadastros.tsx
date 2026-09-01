@@ -696,10 +696,8 @@ const EMPTY_SLAUGHTERHOUSE = {
   name: "",
   city: "",
   state: "",
-  cnpj: "",
   phone: "",
   contact: "",
-  destination: "" as Destination | "",
   notes: "",
   active: true,
 };
