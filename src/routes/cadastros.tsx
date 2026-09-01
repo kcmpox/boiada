@@ -12,8 +12,6 @@ import {
   type TollLocation,
   type CardinalDirection,
   type Slaughterhouse,
-  type Destination,
-  DESTINATION_LABELS,
 } from "@/lib/storage";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -698,10 +696,8 @@ const EMPTY_SLAUGHTERHOUSE = {
   name: "",
   city: "",
   state: "",
-  cnpj: "",
   phone: "",
   contact: "",
-  destination: "" as Destination | "",
   notes: "",
   active: true,
 };
@@ -729,10 +725,8 @@ function SlaughterhousesSection() {
       name: form.name.trim(),
       city: form.city.trim() || undefined,
       state: form.state.trim().toUpperCase() || undefined,
-      cnpj: form.cnpj.trim() || undefined,
       phone: form.phone.trim() || undefined,
       contact: form.contact.trim() || undefined,
-      destination: form.destination || undefined,
       notes: form.notes.trim() || undefined,
       active: form.active,
     };
@@ -752,10 +746,8 @@ function SlaughterhousesSection() {
       name: s.name,
       city: s.city ?? "",
       state: s.state ?? "",
-      cnpj: s.cnpj ?? "",
       phone: s.phone ?? "",
       contact: s.contact ?? "",
-      destination: s.destination ?? "",
       notes: s.notes ?? "",
       active: s.active,
     });
@@ -815,15 +807,6 @@ function SlaughterhousesSection() {
             />
           </div>
           <div>
-            <Label htmlFor="fcnpj">CNPJ</Label>
-            <Input
-              id="fcnpj"
-              value={form.cnpj}
-              onChange={(e) => set("cnpj", e.target.value)}
-              placeholder="00.000.000/0001-00"
-            />
-          </div>
-          <div>
             <Label htmlFor="fphone">Telefone</Label>
             <Input
               id="fphone"
@@ -840,25 +823,6 @@ function SlaughterhousesSection() {
               onChange={(e) => set("contact", e.target.value)}
               placeholder="Nome do responsável"
             />
-          </div>
-          <div>
-            <Label>Destino vinculado</Label>
-            <Select
-              value={form.destination || "nenhum"}
-              onValueChange={(v) => set("destination", v === "nenhum" ? "" : (v as Destination))}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Nenhum" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="nenhum">Nenhum</SelectItem>
-                {(Object.keys(DESTINATION_LABELS) as Destination[]).map((d) => (
-                  <SelectItem key={d} value={d}>
-                    {DESTINATION_LABELS[d]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
           <div className="sm:col-span-2">
             <Label htmlFor="fnotes">Observações</Label>
@@ -914,14 +878,10 @@ function SlaughterhousesSection() {
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="font-semibold">{s.name}</p>
                     {!s.active && <Badge variant="secondary">Inativo</Badge>}
-                    {s.destination && (
-                      <Badge variant="outline">{DESTINATION_LABELS[s.destination]}</Badge>
-                    )}
                   </div>
                   <p className="text-xs text-muted-foreground">
                     {[s.city, s.state].filter(Boolean).join(" - ") || "Sem cidade"}
                   </p>
-                  {s.cnpj && <p className="text-xs text-muted-foreground">CNPJ: {s.cnpj}</p>}
                   {(s.contact || s.phone) && (
                     <p className="text-xs text-muted-foreground">
                       {[s.contact, s.phone].filter(Boolean).join(" · ")}
