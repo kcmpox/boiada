@@ -807,15 +807,6 @@ function SlaughterhousesSection() {
             />
           </div>
           <div>
-            <Label htmlFor="fcnpj">CNPJ</Label>
-            <Input
-              id="fcnpj"
-              value={form.cnpj}
-              onChange={(e) => set("cnpj", e.target.value)}
-              placeholder="00.000.000/0001-00"
-            />
-          </div>
-          <div>
             <Label htmlFor="fphone">Telefone</Label>
             <Input
               id="fphone"
@@ -832,25 +823,6 @@ function SlaughterhousesSection() {
               onChange={(e) => set("contact", e.target.value)}
               placeholder="Nome do responsável"
             />
-          </div>
-          <div>
-            <Label>Destino vinculado</Label>
-            <Select
-              value={form.destination || "nenhum"}
-              onValueChange={(v) => set("destination", v === "nenhum" ? "" : (v as Destination))}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Nenhum" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="nenhum">Nenhum</SelectItem>
-                {(Object.keys(DESTINATION_LABELS) as Destination[]).map((d) => (
-                  <SelectItem key={d} value={d}>
-                    {DESTINATION_LABELS[d]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
           <div className="sm:col-span-2">
             <Label htmlFor="fnotes">Observações</Label>
