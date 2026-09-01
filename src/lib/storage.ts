@@ -330,6 +330,7 @@ const KEYS = {
   commissionPayments: "gt_commission_payments",
   settings: "gt_settings",
   notes: "gt_notes",
+  slaughterhouses: "gt_slaughterhouses",
 };
 
 function read<T>(key: string, fallback: T): T {
