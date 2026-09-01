@@ -30,6 +30,7 @@ import {
   type Payment,
   type CommissionPayment,
   type DriverEntry,
+  type Note,
   DESTINATION_LABELS,
   DESTINATION_PREFIX,
 } from "@/lib/storage";
@@ -1280,7 +1281,7 @@ function BackupSection() {
         importPayload.commissionPayments as CommissionPayment[],
       );
       const driverEntries_ = pick("driverEntries", importPayload.driverEntries as DriverEntry[]);
-      const notes_ = pick("notes", importPayload.notes as { id: string }[]);
+      const notes_ = pick("notes", importPayload.notes as Note[]);
 
       const mergeById = <T extends { id: string }>(prev: T[], next: T[]): T[] => {
         const map = new Map(prev.map((x) => [x.id, x] as const));
@@ -1341,7 +1342,6 @@ function BackupSection() {
       priceTables: new Set(),
     commissionPayments: new Set(),
     driverEntries: new Set(),
-    notes: new Set(),
   });
     setWipeInput("");
     setWipeWord(null);

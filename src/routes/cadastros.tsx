@@ -4,12 +4,16 @@ import {
   useTrucks,
   useDrivers,
   useTollLocations,
+  useSlaughterhouses,
   uid,
   formatBRL,
   type Truck,
   type Driver,
   type TollLocation,
   type CardinalDirection,
+  type Slaughterhouse,
+  type Destination,
+  DESTINATION_LABELS,
 } from "@/lib/storage";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -39,6 +43,7 @@ import {
   ChevronLeft,
   Settings as SettingsIcon,
   CircleDot,
+  Factory,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -53,7 +58,7 @@ export const Route = createFileRoute("/cadastros")({
   component: CadastrosPage,
 });
 
-type SectionKey = "caminhoes" | "motoristas" | "pedagios";
+type SectionKey = "caminhoes" | "motoristas" | "pedagios" | "frigorificos";
 
 const NAV_ITEMS: {
   key: SectionKey;
@@ -64,6 +69,12 @@ const NAV_ITEMS: {
   { key: "caminhoes", label: "Caminhões", icon: TruckIcon, desc: "Veículos e placas" },
   { key: "motoristas", label: "Motoristas", icon: UserIcon, desc: "Motoristas ativos e inativos" },
   { key: "pedagios", label: "Pedágios", icon: CoinsIcon, desc: "Localidades de pedágio" },
+  {
+    key: "frigorificos",
+    label: "Frigoríficos",
+    icon: Factory,
+    desc: "Unidades e contatos",
+  },
 ];
 
 function CadastrosPage() {
@@ -79,7 +90,7 @@ function CadastrosPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Cadastros</h1>
           <p className="text-sm text-muted-foreground">
-            Gerencie caminhões, motoristas e pedágios.
+            Gerencie caminhões, motoristas, pedágios e frigoríficos.
           </p>
         </div>
       </div>
@@ -141,6 +152,7 @@ function CadastrosPage() {
           {section === "caminhoes" && <TrucksSection />}
           {section === "motoristas" && <DriversSection />}
           {section === "pedagios" && <TollLocationsSection />}
+          {section === "frigorificos" && <SlaughterhousesSection />}
         </div>
       </div>
     </div>
@@ -666,6 +678,262 @@ function TollLocationsSection() {
                     <Pencil className="h-4 w-4" />
                   </Button>
                   <Button variant="ghost" size="icon" onClick={() => remove(t.id)}>
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                </div>
+              </div>
+            </Panel>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// FRIGORÍFICOS
+// ---------------------------------------------------------------------------
+
+const EMPTY_SLAUGHTERHOUSE = {
+  name: "",
+  city: "",
+  state: "",
+  cnpj: "",
+  phone: "",
+  contact: "",
+  destination: "" as Destination | "",
+  notes: "",
+  active: true,
+};
+
+function SlaughterhousesSection() {
+  const [list, setList] = useSlaughterhouses();
+  const [form, setForm] = useState({ ...EMPTY_SLAUGHTERHOUSE });
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) =>
+    setForm((f) => ({ ...f, [k]: v }));
+
+  const reset = () => {
+    setEditingId(null);
+    setForm({ ...EMPTY_SLAUGHTERHOUSE });
+  };
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.name.trim()) {
+      toast.error("Informe o nome do frigorífico");
+      return;
+    }
+    const data: Omit<Slaughterhouse, "id"> = {
+      name: form.name.trim(),
+      city: form.city.trim() || undefined,
+      state: form.state.trim().toUpperCase() || undefined,
+      cnpj: form.cnpj.trim() || undefined,
+      phone: form.phone.trim() || undefined,
+      contact: form.contact.trim() || undefined,
+      destination: form.destination || undefined,
+      notes: form.notes.trim() || undefined,
+      active: form.active,
+    };
+    if (editingId) {
+      setList((prev) => prev.map((s) => (s.id === editingId ? { ...s, ...data } : s)));
+      toast.success("Frigorífico atualizado");
+    } else {
+      setList((prev) => [...prev, { id: uid(), ...data }]);
+      toast.success("Frigorífico cadastrado");
+    }
+    reset();
+  };
+
+  const startEdit = (s: Slaughterhouse) => {
+    setEditingId(s.id);
+    setForm({
+      name: s.name,
+      city: s.city ?? "",
+      state: s.state ?? "",
+      cnpj: s.cnpj ?? "",
+      phone: s.phone ?? "",
+      contact: s.contact ?? "",
+      destination: s.destination ?? "",
+      notes: s.notes ?? "",
+      active: s.active,
+    });
+  };
+
+  const remove = (id: string) => {
+    setList((prev) => prev.filter((s) => s.id !== id));
+    if (editingId === id) reset();
+    toast.success("Frigorífico removido");
+  };
+
+  const sorted = useMemo(
+    () => [...list].sort((a, b) => a.name.localeCompare(b.name)),
+    [list],
+  );
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center gap-3">
+        <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <Factory className="h-5 w-5" />
+        </span>
+        <div>
+          <h2 className="text-xl font-bold tracking-tight">Frigoríficos</h2>
+          <p className="text-sm text-muted-foreground">Unidades de abate e contatos.</p>
+        </div>
+      </div>
+
+      <Panel>
+        <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <Label htmlFor="fname">Nome</Label>
+            <Input
+              id="fname"
+              value={form.name}
+              onChange={(e) => set("name", e.target.value)}
+              placeholder="Frigorífico Bataguassu"
+            />
+          </div>
+          <div>
+            <Label htmlFor="fcity">Cidade</Label>
+            <Input
+              id="fcity"
+              value={form.city}
+              onChange={(e) => set("city", e.target.value)}
+              placeholder="Bataguassu"
+            />
+          </div>
+          <div>
+            <Label htmlFor="fstate">UF</Label>
+            <Input
+              id="fstate"
+              maxLength={2}
+              value={form.state}
+              onChange={(e) => set("state", e.target.value)}
+              placeholder="MS"
+            />
+          </div>
+          <div>
+            <Label htmlFor="fcnpj">CNPJ</Label>
+            <Input
+              id="fcnpj"
+              value={form.cnpj}
+              onChange={(e) => set("cnpj", e.target.value)}
+              placeholder="00.000.000/0001-00"
+            />
+          </div>
+          <div>
+            <Label htmlFor="fphone">Telefone</Label>
+            <Input
+              id="fphone"
+              value={form.phone}
+              onChange={(e) => set("phone", e.target.value)}
+              placeholder="(67) 90000-0000"
+            />
+          </div>
+          <div>
+            <Label htmlFor="fcontact">Contato</Label>
+            <Input
+              id="fcontact"
+              value={form.contact}
+              onChange={(e) => set("contact", e.target.value)}
+              placeholder="Nome do responsável"
+            />
+          </div>
+          <div>
+            <Label>Destino vinculado</Label>
+            <Select
+              value={form.destination || "nenhum"}
+              onValueChange={(v) => set("destination", v === "nenhum" ? "" : (v as Destination))}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Nenhum" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="nenhum">Nenhum</SelectItem>
+                {(Object.keys(DESTINATION_LABELS) as Destination[]).map((d) => (
+                  <SelectItem key={d} value={d}>
+                    {DESTINATION_LABELS[d]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="sm:col-span-2">
+            <Label htmlFor="fnotes">Observações</Label>
+            <Textarea
+              id="fnotes"
+              value={form.notes}
+              onChange={(e) => set("notes", e.target.value)}
+              rows={2}
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <Switch
+              id="factive"
+              checked={form.active}
+              onCheckedChange={(v) => set("active", v)}
+            />
+            <Label htmlFor="factive">Ativo</Label>
+          </div>
+          <div className="flex items-end justify-end gap-2">
+            {editingId && (
+              <Button type="button" variant="ghost" onClick={reset}>
+                <X className="mr-1 h-4 w-4" /> Cancelar
+              </Button>
+            )}
+            <Button type="submit">
+              {editingId ? (
+                <>
+                  <Save className="mr-1 h-4 w-4" /> Salvar
+                </>
+              ) : (
+                <>
+                  <Plus className="mr-1 h-4 w-4" /> Adicionar
+                </>
+              )}
+            </Button>
+          </div>
+        </form>
+      </Panel>
+
+      {sorted.length === 0 ? (
+        <Panel className="text-center">
+          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-muted">
+            <Factory className="h-7 w-7 text-muted-foreground" />
+          </div>
+          <p className="text-muted-foreground">Nenhum frigorífico cadastrado.</p>
+        </Panel>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {sorted.map((s) => (
+            <Panel key={s.id}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-semibold">{s.name}</p>
+                    {!s.active && <Badge variant="secondary">Inativo</Badge>}
+                    {s.destination && (
+                      <Badge variant="outline">{DESTINATION_LABELS[s.destination]}</Badge>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {[s.city, s.state].filter(Boolean).join(" - ") || "Sem cidade"}
+                  </p>
+                  {s.cnpj && <p className="text-xs text-muted-foreground">CNPJ: {s.cnpj}</p>}
+                  {(s.contact || s.phone) && (
+                    <p className="text-xs text-muted-foreground">
+                      {[s.contact, s.phone].filter(Boolean).join(" · ")}
+                    </p>
+                  )}
+                  {s.notes && <p className="mt-1 text-xs text-muted-foreground">{s.notes}</p>}
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button variant="ghost" size="icon" onClick={() => startEdit(s)}>
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => remove(s.id)}>
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
                 </div>

@@ -176,6 +176,22 @@ export interface TollLocation {
   longitude?: number;
 }
 
+/** Frigorífico cadastrado (unidade de abate / destino de entrega). */
+export interface Slaughterhouse {
+  id: string;
+  name: string;
+  city?: string;
+  state?: string;
+  cnpj?: string;
+  phone?: string;
+  contact?: string;
+  destination?: Destination;
+  notes?: string;
+  active: boolean;
+}
+
+
+
 export const RENT_PERCENT = 0.1;
 
 export interface Payment {
@@ -330,6 +346,7 @@ const KEYS = {
   commissionPayments: "gt_commission_payments",
   settings: "gt_settings",
   notes: "gt_notes",
+  slaughterhouses: "gt_slaughterhouses",
 };
 
 function read<T>(key: string, fallback: T): T {
@@ -400,6 +417,8 @@ export const useCommissionPayments = () =>
   useStored<CommissionPayment[]>(KEYS.commissionPayments, []);
 export const useSettings = () => useStored<AppSettings>(KEYS.settings, DEFAULT_SETTINGS);
 export const useNotes = () => useStored<Note[]>(KEYS.notes, []);
+export const useSlaughterhouses = () =>
+  useStored<Slaughterhouse[]>(KEYS.slaughterhouses, []);
 
 // --- Legacy hooks for backward compat (configuracoes import) ---
 export const usePriceTiers = () => useStored<OldPriceTier[]>(KEYS.legacyTiers, []);
