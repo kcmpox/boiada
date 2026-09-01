@@ -912,6 +912,7 @@ function BackupSection() {
     payments: new Set(),
     commissionPayments: new Set(),
     driverEntries: new Set(),
+    notes: new Set(),
   });
 
   const [wipeOpen, setWipeOpen] = useState(false);
