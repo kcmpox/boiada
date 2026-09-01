@@ -746,10 +746,8 @@ function SlaughterhousesSection() {
       name: s.name,
       city: s.city ?? "",
       state: s.state ?? "",
-      cnpj: s.cnpj ?? "",
       phone: s.phone ?? "",
       contact: s.contact ?? "",
-      destination: s.destination ?? "",
       notes: s.notes ?? "",
       active: s.active,
     });
