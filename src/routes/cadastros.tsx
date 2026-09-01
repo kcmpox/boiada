@@ -878,14 +878,10 @@ function SlaughterhousesSection() {
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="font-semibold">{s.name}</p>
                     {!s.active && <Badge variant="secondary">Inativo</Badge>}
-                    {s.destination && (
-                      <Badge variant="outline">{DESTINATION_LABELS[s.destination]}</Badge>
-                    )}
                   </div>
                   <p className="text-xs text-muted-foreground">
                     {[s.city, s.state].filter(Boolean).join(" - ") || "Sem cidade"}
                   </p>
-                  {s.cnpj && <p className="text-xs text-muted-foreground">CNPJ: {s.cnpj}</p>}
                   {(s.contact || s.phone) && (
                     <p className="text-xs text-muted-foreground">
                       {[s.contact, s.phone].filter(Boolean).join(" · ")}
