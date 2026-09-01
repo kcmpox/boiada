@@ -417,6 +417,8 @@ export const useCommissionPayments = () =>
   useStored<CommissionPayment[]>(KEYS.commissionPayments, []);
 export const useSettings = () => useStored<AppSettings>(KEYS.settings, DEFAULT_SETTINGS);
 export const useNotes = () => useStored<Note[]>(KEYS.notes, []);
+export const useSlaughterhouses = () =>
+  useStored<Slaughterhouse[]>(KEYS.slaughterhouses, []);
 
 // --- Legacy hooks for backward compat (configuracoes import) ---
 export const usePriceTiers = () => useStored<OldPriceTier[]>(KEYS.legacyTiers, []);
