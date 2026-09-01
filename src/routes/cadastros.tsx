@@ -12,8 +12,6 @@ import {
   type TollLocation,
   type CardinalDirection,
   type Slaughterhouse,
-  type Destination,
-  DESTINATION_LABELS,
 } from "@/lib/storage";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
