@@ -17,6 +17,8 @@ import {
   type CattleType,
   type Destination,
   type PriceTable,
+  useSlaughterhouses,
+  destinationLabel,
 } from "@/lib/storage";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -236,6 +238,7 @@ function TripsListSection() {
   const [trucks] = useTrucks();
   const [drivers] = useDrivers();
   const [tables] = usePriceTables();
+  const [slaughterhouses] = useSlaughterhouses();
   const [payments] = usePayments();
   const lockedTripIds = useMemo(() => new Set(payments.flatMap((p) => p.tripIds)), [payments]);
   const [open, setOpen] = useState(false);
@@ -880,6 +883,8 @@ function TripDialog({ trip, onSaved }: { trip: Trip | null; onSaved: () => void 
   const [trucks] = useTrucks();
   const [drivers] = useDrivers();
   const [tables] = usePriceTables();
+  const [slaughterhouses] = useSlaughterhouses();
+  const activeSlaughterhouses = slaughterhouses.filter((s) => s.active);
   const [tolls, setTolls] = useTolls();
 
   const availableDrivers = useMemo(
@@ -1207,10 +1212,9 @@ function TripDialog({ trip, onSaved }: { trip: Trip | null; onSaved: () => void 
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="cassilandia">Cassilândia</SelectItem>
-                  <SelectItem value="bataguassu">Bataguassu</SelectItem>
-                </SelectContent>
+  <SelectContent>
+  {activeSlaughterhouses.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+  </SelectContent>
               </Select>
             </div>
             <div>

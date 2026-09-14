@@ -699,6 +699,8 @@ const EMPTY_SLAUGHTERHOUSE = {
   phone: "",
   contact: "",
   notes: "",
+  financialContactsText: "",
+  otherContactsText: "",
   active: true,
 };
 
@@ -727,8 +729,10 @@ function SlaughterhousesSection() {
       state: form.state.trim().toUpperCase() || undefined,
       phone: form.phone.trim() || undefined,
       contact: form.contact.trim() || undefined,
-      notes: form.notes.trim() || undefined,
-      active: form.active,
+  notes: form.notes.trim() || undefined,
+  financialContacts: form.financialContactsText.split("\n").map((line) => line.trim()).filter(Boolean).map((line) => ({ id: uid(), name: line })),
+  otherContacts: form.otherContactsText.split("\n").map((line) => line.trim()).filter(Boolean).map((line) => ({ id: uid(), name: line })),
+  active: form.active,
     };
     if (editingId) {
       setList((prev) => prev.map((s) => (s.id === editingId ? { ...s, ...data } : s)));
@@ -748,8 +752,10 @@ function SlaughterhousesSection() {
       state: s.state ?? "",
       phone: s.phone ?? "",
       contact: s.contact ?? "",
-      notes: s.notes ?? "",
-      active: s.active,
+  notes: s.notes ?? "",
+  financialContactsText: (s.financialContacts ?? []).map((c) => c.name).join("\n"),
+  otherContactsText: (s.otherContacts ?? []).map((c) => c.name).join("\n"),
+  active: s.active,
     });
   };
 
@@ -824,8 +830,16 @@ function SlaughterhousesSection() {
               placeholder="Nome do responsável"
             />
           </div>
-          <div className="sm:col-span-2">
-            <Label htmlFor="fnotes">Observações</Label>
+  <div>
+  <Label htmlFor="ffinancial">Contatos financeiros</Label>
+  <Textarea id="ffinancial" value={form.financialContactsText} onChange={(e) => set("financialContactsText", e.target.value)} placeholder="Nome — telefone — e-mail (um por linha)" rows={3} />
+  </div>
+  <div>
+  <Label htmlFor="fother">Outros contatos</Label>
+  <Textarea id="fother" value={form.otherContactsText} onChange={(e) => set("otherContactsText", e.target.value)} placeholder="Nome — telefone — e-mail (um por linha)" rows={3} />
+  </div>
+  <div className="sm:col-span-2">
+  <Label htmlFor="fnotes">Observações</Label>
             <Textarea
               id="fnotes"
               value={form.notes}

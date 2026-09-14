@@ -9,31 +9,16 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as ViagensRouteImport } from './routes/viagens'
-import { Route as RecebimentosRouteImport } from './routes/recebimentos'
-import { Route as DespesasRouteImport } from './routes/despesas'
-import { Route as ConfiguracoesRouteImport } from './routes/configuracoes'
-import { Route as CadastrosRouteImport } from './routes/cadastros'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as CadastrosRouteImport } from './routes/cadastros'
+import { Route as ConfiguracoesRouteImport } from './routes/configuracoes'
+import { Route as DespesasRouteImport } from './routes/despesas'
+import { Route as RecebimentosRouteImport } from './routes/recebimentos'
+import { Route as ViagensRouteImport } from './routes/viagens'
 
-const ViagensRoute = ViagensRouteImport.update({
-  id: '/viagens',
-  path: '/viagens',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RecebimentosRoute = RecebimentosRouteImport.update({
-  id: '/recebimentos',
-  path: '/recebimentos',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DespesasRoute = DespesasRouteImport.update({
-  id: '/despesas',
-  path: '/despesas',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ConfiguracoesRoute = ConfiguracoesRouteImport.update({
-  id: '/configuracoes',
-  path: '/configuracoes',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CadastrosRoute = CadastrosRouteImport.update({
@@ -41,9 +26,24 @@ const CadastrosRoute = CadastrosRouteImport.update({
   path: '/cadastros',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const ConfiguracoesRoute = ConfiguracoesRouteImport.update({
+  id: '/configuracoes',
+  path: '/configuracoes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DespesasRoute = DespesasRouteImport.update({
+  id: '/despesas',
+  path: '/despesas',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RecebimentosRoute = RecebimentosRouteImport.update({
+  id: '/recebimentos',
+  path: '/recebimentos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ViagensRoute = ViagensRouteImport.update({
+  id: '/viagens',
+  path: '/viagens',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -110,32 +110,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/viagens': {
-      id: '/viagens'
-      path: '/viagens'
-      fullPath: '/viagens'
-      preLoaderRoute: typeof ViagensRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/recebimentos': {
-      id: '/recebimentos'
-      path: '/recebimentos'
-      fullPath: '/recebimentos'
-      preLoaderRoute: typeof RecebimentosRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/despesas': {
-      id: '/despesas'
-      path: '/despesas'
-      fullPath: '/despesas'
-      preLoaderRoute: typeof DespesasRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/configuracoes': {
-      id: '/configuracoes'
-      path: '/configuracoes'
-      fullPath: '/configuracoes'
-      preLoaderRoute: typeof ConfiguracoesRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/cadastros': {
@@ -145,11 +124,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CadastrosRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/configuracoes': {
+      id: '/configuracoes'
+      path: '/configuracoes'
+      fullPath: '/configuracoes'
+      preLoaderRoute: typeof ConfiguracoesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/despesas': {
+      id: '/despesas'
+      path: '/despesas'
+      fullPath: '/despesas'
+      preLoaderRoute: typeof DespesasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/recebimentos': {
+      id: '/recebimentos'
+      path: '/recebimentos'
+      fullPath: '/recebimentos'
+      preLoaderRoute: typeof RecebimentosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/viagens': {
+      id: '/viagens'
+      path: '/viagens'
+      fullPath: '/viagens'
+      preLoaderRoute: typeof ViagensRouteImport
       parentRoute: typeof rootRouteImport
     }
   }

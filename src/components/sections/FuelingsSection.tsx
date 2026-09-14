@@ -887,6 +887,13 @@ function FuelingDialog({
                 />
               </div>
               <div className="col-span-2">
+                <Label className="text-xs">Responsável</Label>
+                <Select value={it.responsibility ?? responsibility} onValueChange={(v) => updateItem(idx, { responsibility: v as ExpenseResponsibility })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="minha">Minha despesa</SelectItem><SelectItem value="desconto">Frigorífico desconta</SelectItem><SelectItem value="ressarcir">Frigorífico ressarce</SelectItem></SelectContent>
+                </Select>
+              </div>
+              <div className="col-span-2">
                 <Label className="text-xs">Desc. (R$)</Label>
                 <Input
                   type="number"
