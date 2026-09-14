@@ -61,7 +61,16 @@ export function AlternativeLayoutDialog({ open, title, onBack }: { open: boolean
   const fuelingsValue = signedValue(selectedFuelingItems)
   const maintenanceValue = signedValue(selectedExpenses)
   const tollsValue = signedValue(tripTolls.filter((item) => selectedIds.includes(item.id)))
-  const informedValue = (id: string, fallback: number) => Number(receivedByItem[id]?.replace(",", ".")) || fallback
+  const informedValue = (id: string, fallback: number) => {
+    const raw = receivedByItem[id]
+    if (raw === undefined || raw.trim() === "") return fallback
+    const parsed = Number(raw.replace(",", "."))
+    return Number.isFinite(parsed) ? parsed : fallback
+  }
+  const tripKm = (trip: { kmStart?: number; kmEnd?: number; manualDistance?: number }) => {
+    if ((trip.kmStart ?? 0) > 0 || (trip.kmEnd ?? 0) > 0) return Math.max(0, (trip.kmEnd ?? 0) - (trip.kmStart ?? 0))
+    return trip.manualDistance ?? 0
+  }
   const computedReceivedTotal = selectedTrips.reduce((sum, trip) => sum + informedValue(trip.id, (trip.tableValue ?? trip.finalValue ?? 0) * 0.9), 0) + signedValue(selectedFuelingItems.map((item) => ({ ...item, amount: informedValue(item.id, item.amount) }))) + signedValue(selectedExpenses.map((item) => ({ ...item, amount: informedValue(item.id, item.amount) }))) + signedValue(tripTolls.filter((item) => selectedIds.includes(item.id)).map((item) => ({ ...item, amount: informedValue(item.id, item.amount) }))) - selectedDeductions.reduce((sum, item) => sum + informedValue(item.id, item.amount || 0), 0) + selectedReimbursements.reduce((sum, item) => sum + informedValue(item.id, item.amount || 0), 0)
   const deductionsValue = selectedDeductions.reduce((total, item) => total + (item.amount || 0), 0)
   const reimbursementsValue = selectedReimbursements.reduce((total, item) => total + (item.amount || 0), 0)
