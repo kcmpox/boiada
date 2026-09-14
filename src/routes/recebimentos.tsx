@@ -83,19 +83,45 @@ export const Route = createFileRoute("/recebimentos")({
   component: ReceiptsPage,
 });
 
-type ReceiptSectionKey = "historico" | "bataguassu" | "cassilandia" | "outrosDescontos" | "outrosReembolsos";
+type ReceiptNavItem = { key: string; label: string; desc: string; icon: typeof History };
 
-const RECEIPT_NAV_ITEMS = [
-  { key: "historico" as const, label: "Histórico", desc: "Todos os pagamentos", icon: History },
-  { key: "bataguassu" as const, label: "Bataguassu", desc: "Incongruências do frigorífico", icon: Building2 },
-  { key: "cassilandia" as const, label: "Cassilândia", desc: "Incongruências do frigorífico", icon: Building2 },
-  { key: "outrosDescontos" as const, label: "Outros Descontos", desc: "Abatimentos adicionais", icon: ScaleIcon },
-  { key: "outrosReembolsos" as const, label: "Outros Reembolsos", desc: "Reembolsos adicionais", icon: ScaleIcon },
+const BASE_NAV_ITEMS: ReceiptNavItem[] = [
+  { key: "historico", label: "Histórico", desc: "Todos os pagamentos", icon: History },
+];
+
+const EXTRA_NAV_ITEMS: ReceiptNavItem[] = [
+  { key: "outrosDescontos", label: "Outros Descontos", desc: "Abatimentos adicionais", icon: ScaleIcon },
+  { key: "outrosReembolsos", label: "Outros Reembolsos", desc: "Reembolsos adicionais", icon: ScaleIcon },
 ];
 
 function ReceiptsPage() {
-  const [section, setSection] = useState<ReceiptSectionKey>("historico");
-  const active = RECEIPT_NAV_ITEMS.find((item) => item.key === section)!;
+  const [slaughterhouses] = useSlaughterhouses();
+  const [section, setSection] = useState<string>("historico");
+
+  const slaughterhouseItems = useMemo<ReceiptNavItem[]>(
+    () =>
+      [...slaughterhouses]
+        .filter((s) => s.active !== false)
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((s) => ({
+          key: `frigorifico:${s.id}`,
+          label: s.name,
+          desc: "Incongruências do frigorífico",
+          icon: Building2,
+        })),
+    [slaughterhouses],
+  );
+
+  const navItems = useMemo(
+    () => [...BASE_NAV_ITEMS, ...slaughterhouseItems, ...EXTRA_NAV_ITEMS],
+    [slaughterhouseItems],
+  );
+
+  const active = navItems.find((item) => item.key === section) ?? navItems[0];
+  const currentSlaughterhouse = active.key.startsWith("frigorifico:")
+    ? slaughterhouses.find((s) => s.id === active.key.slice("frigorifico:".length))
+    : undefined;
+
 
   return (
     <div className="space-y-6">
