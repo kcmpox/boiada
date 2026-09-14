@@ -149,9 +149,9 @@ function ReceiptsPage() {
         </nav>
         <div className="min-w-0">
           <div className="mb-4 flex items-center gap-2 md:hidden"><span className="text-sm font-medium text-muted-foreground">{active.desc}</span></div>
-          {section === "historico" && <ReceiptsTab />}
-          {section === "bataguassu" && <ConstructionNotice title="Bataguassu" />}
-          {section === "cassilandia" && <ConstructionNotice title="Cassilândia" />}
+          {active.key === "historico" && <ReceiptsTab />}
+          {currentSlaughterhouse && <SlaughterhouseReceipts key={currentSlaughterhouse.id} slaughterhouseId={currentSlaughterhouse.id} name={currentSlaughterhouse.name} city={currentSlaughterhouse.city} state={currentSlaughterhouse.state} />}
+
           {section === "outrosDescontos" && <div className="flex flex-col gap-4"><div><h2 className="text-2xl font-bold">Outros Descontos</h2><p className="text-sm text-muted-foreground">Registre descontos adicionais vinculados a viagens.</p></div><OtherFinancialEntryDialog mode="desconto" /></div>}
           {section === "outrosReembolsos" && <div className="flex flex-col gap-4"><div><h2 className="text-2xl font-bold">Outros Reembolsos</h2><p className="text-sm text-muted-foreground">Registre reembolsos adicionais vinculados a viagens.</p></div><OtherFinancialEntryDialog mode="reembolso" /></div>}
         </div>
