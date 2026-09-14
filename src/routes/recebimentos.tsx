@@ -83,19 +83,45 @@ export const Route = createFileRoute("/recebimentos")({
   component: ReceiptsPage,
 });
 
-type ReceiptSectionKey = "historico" | "bataguassu" | "cassilandia" | "outrosDescontos" | "outrosReembolsos";
+type ReceiptNavItem = { key: string; label: string; desc: string; icon: typeof History };
 
-const RECEIPT_NAV_ITEMS = [
-  { key: "historico" as const, label: "Histórico", desc: "Todos os pagamentos", icon: History },
-  { key: "bataguassu" as const, label: "Bataguassu", desc: "Incongruências do frigorífico", icon: Building2 },
-  { key: "cassilandia" as const, label: "Cassilândia", desc: "Incongruências do frigorífico", icon: Building2 },
-  { key: "outrosDescontos" as const, label: "Outros Descontos", desc: "Abatimentos adicionais", icon: ScaleIcon },
-  { key: "outrosReembolsos" as const, label: "Outros Reembolsos", desc: "Reembolsos adicionais", icon: ScaleIcon },
+const BASE_NAV_ITEMS: ReceiptNavItem[] = [
+  { key: "historico", label: "Histórico", desc: "Todos os pagamentos", icon: History },
+];
+
+const EXTRA_NAV_ITEMS: ReceiptNavItem[] = [
+  { key: "outrosDescontos", label: "Outros Descontos", desc: "Abatimentos adicionais", icon: ScaleIcon },
+  { key: "outrosReembolsos", label: "Outros Reembolsos", desc: "Reembolsos adicionais", icon: ScaleIcon },
 ];
 
 function ReceiptsPage() {
-  const [section, setSection] = useState<ReceiptSectionKey>("historico");
-  const active = RECEIPT_NAV_ITEMS.find((item) => item.key === section)!;
+  const [slaughterhouses] = useSlaughterhouses();
+  const [section, setSection] = useState<string>("historico");
+
+  const slaughterhouseItems = useMemo<ReceiptNavItem[]>(
+    () =>
+      [...slaughterhouses]
+        .filter((s) => s.active !== false)
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((s) => ({
+          key: `frigorifico:${s.id}`,
+          label: s.name,
+          desc: "Incongruências do frigorífico",
+          icon: Building2,
+        })),
+    [slaughterhouses],
+  );
+
+  const navItems = useMemo(
+    () => [...BASE_NAV_ITEMS, ...slaughterhouseItems, ...EXTRA_NAV_ITEMS],
+    [slaughterhouseItems],
+  );
+
+  const active = navItems.find((item) => item.key === section) ?? navItems[0];
+  const currentSlaughterhouse = active.key.startsWith("frigorifico:")
+    ? slaughterhouses.find((s) => s.id === active.key.slice("frigorifico:".length))
+    : undefined;
+
 
   return (
     <div className="space-y-6">
@@ -113,7 +139,7 @@ function ReceiptsPage() {
   <div className="grid gap-6 md:grid-cols-[260px_1fr]">
   <nav className="md:sticky md:top-6 md:self-start">
           <div className="flex gap-1.5 overflow-x-auto pb-1 md:flex-col md:overflow-visible md:pb-0">
-            {RECEIPT_NAV_ITEMS.map((item) => { const Icon = item.icon; const isActive = section === item.key; return (
+            {navItems.map((item) => { const Icon = item.icon; const isActive = active.key === item.key; return (
               <button key={item.key} onClick={() => setSection(item.key)} className={cn("group flex min-w-[140px] flex-1 items-center gap-3 rounded-xl border px-3.5 py-3 text-left transition-all md:min-w-0 md:flex-none", isActive ? "border-primary/30 bg-primary/5 shadow-sm" : "border-transparent hover:border-border hover:bg-muted/50")}>
                 <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg", isActive ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}><Icon className="h-4 w-4" /></span>
                 <span className="min-w-0"><span className={cn("block truncate text-sm font-semibold", isActive ? "text-foreground" : "text-muted-foreground")}>{item.label}</span><span className="hidden truncate text-xs text-muted-foreground md:block">{item.desc}</span></span>
@@ -123,9 +149,9 @@ function ReceiptsPage() {
         </nav>
         <div className="min-w-0">
           <div className="mb-4 flex items-center gap-2 md:hidden"><span className="text-sm font-medium text-muted-foreground">{active.desc}</span></div>
-          {section === "historico" && <ReceiptsTab />}
-          {section === "bataguassu" && <ConstructionNotice title="Bataguassu" />}
-          {section === "cassilandia" && <ConstructionNotice title="Cassilândia" />}
+          {active.key === "historico" && <ReceiptsTab />}
+          {currentSlaughterhouse && <SlaughterhouseReceipts key={currentSlaughterhouse.id} slaughterhouseId={currentSlaughterhouse.id} name={currentSlaughterhouse.name} city={currentSlaughterhouse.city} state={currentSlaughterhouse.state} />}
+
           {section === "outrosDescontos" && <div className="flex flex-col gap-4"><div><h2 className="text-2xl font-bold">Outros Descontos</h2><p className="text-sm text-muted-foreground">Registre descontos adicionais vinculados a viagens.</p></div><OtherFinancialEntryDialog mode="desconto" /></div>}
           {section === "outrosReembolsos" && <div className="flex flex-col gap-4"><div><h2 className="text-2xl font-bold">Outros Reembolsos</h2><p className="text-sm text-muted-foreground">Registre reembolsos adicionais vinculados a viagens.</p></div><OtherFinancialEntryDialog mode="reembolso" /></div>}
         </div>
