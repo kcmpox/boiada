@@ -77,6 +77,9 @@ export function AlternativeLayoutDialog({ open, title, onBack }: { open: boolean
   const rentValue = grossValue * 0.1
   const expectedValue = (grossValue * 0.9) + fuelingsValue + maintenanceValue + tollsValue + reimbursementsValue - deductionsValue
   const ready = Boolean(truckId && destination)
+  const parsedReceived = Number(receivedValue.replace(",", "."))
+  const finalReceivedValue = receivedValue.trim() === "" || !Number.isFinite(parsedReceived) ? computedReceivedTotal : parsedReceived
+  const receivedDifference = Number((finalReceivedValue - computedReceivedTotal).toFixed(2))
   const jsonValue = { date: paymentDate, truckId, destination, tripIds: selectedTrips.map((trip) => trip.id), trips: selectedTrips.map((trip) => ({ ...trip, cte: tripEdits[trip.id]?.cte ?? trip.cte, minuta: tripEdits[trip.id]?.minuta ?? trip.minuta })), fuelingItemIds: selectedFuelingItems.map((item) => item.id), fuelings: selectedFuelingItems, tollIds: tripTolls.filter((toll) => selectedIds.includes(toll.id)).map((toll) => toll.id), tolls: tripTolls.filter((toll) => selectedIds.includes(toll.id)), expenseIds: selectedExpenses.map((item) => item.id), expenses: selectedExpenses, deductionIds: selectedDeductions.map((item) => item.id), deductions: selectedDeductions, reimbursementIds: selectedReimbursements.map((item) => item.id), reimbursements: selectedReimbursements, grossValue, rentValue, reimbursedValue: selectedReimbursements.reduce((sum, item) => sum + item.amount, 0), deductedValue: selectedDeductions.reduce((sum, item) => sum + item.amount, 0), expectedValue, fuelingsValue, deductionsValue, reimbursementsValue, receivedValue: Number(receivedValue.replace(",", ".")) || computedReceivedTotal, receivedByItem, notes }
 
   const saveReceipt = () => {
