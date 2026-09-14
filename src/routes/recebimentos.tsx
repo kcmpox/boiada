@@ -139,7 +139,7 @@ function ReceiptsPage() {
   <div className="grid gap-6 md:grid-cols-[260px_1fr]">
   <nav className="md:sticky md:top-6 md:self-start">
           <div className="flex gap-1.5 overflow-x-auto pb-1 md:flex-col md:overflow-visible md:pb-0">
-            {RECEIPT_NAV_ITEMS.map((item) => { const Icon = item.icon; const isActive = section === item.key; return (
+            {navItems.map((item) => { const Icon = item.icon; const isActive = active.key === item.key; return (
               <button key={item.key} onClick={() => setSection(item.key)} className={cn("group flex min-w-[140px] flex-1 items-center gap-3 rounded-xl border px-3.5 py-3 text-left transition-all md:min-w-0 md:flex-none", isActive ? "border-primary/30 bg-primary/5 shadow-sm" : "border-transparent hover:border-border hover:bg-muted/50")}>
                 <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg", isActive ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}><Icon className="h-4 w-4" /></span>
                 <span className="min-w-0"><span className={cn("block truncate text-sm font-semibold", isActive ? "text-foreground" : "text-muted-foreground")}>{item.label}</span><span className="hidden truncate text-xs text-muted-foreground md:block">{item.desc}</span></span>
