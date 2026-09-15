@@ -189,6 +189,23 @@ function ConstructionNotice({ title }: { title: string }) {
   );
 }
 
+function SlaughterhouseReceipts({ slaughterhouseId, name, city, state }: { slaughterhouseId: string; name: string; city?: string; state?: string }) {
+  const place = [city, state].filter(Boolean).join(" / ");
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-2xl font-bold">{name}</h2>
+        <p className="text-sm text-muted-foreground">
+          Incongruências e acertos deste frigorífico{place ? ` · ${place}` : ""}
+        </p>
+      </div>
+      <ConstructionNotice title={name} />
+      <p className="text-xs text-muted-foreground">Identificador: {slaughterhouseId.slice(0, 8)}</p>
+    </div>
+  );
+}
+
+
 function totalFuel(f: Fueling) {
   const itemsTotal = f.items.reduce(
     (s, i) => s + i.quantity * i.unitPrice - (i.discount || 0),
