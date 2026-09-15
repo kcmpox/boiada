@@ -605,6 +605,17 @@ function ReceiptsTab() {
                       >
                         <FileDown className="h-4 w-4" />
                       </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        title="Editar recebimento"
+                        onClick={() => {
+                          setJsonEditItem(p);
+                          setJsonEditOpen(true);
+                        }}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
                       {settings.editorMode && (
                         <Button
                           variant="ghost"
@@ -1393,6 +1404,8 @@ type RegistryFile = {
   fuelings?: Fueling[];
   expenses?: Expense[];
   tolls?: Toll[];
+  deductions?: OtherDeductionReimbursement[];
+  reimbursements?: OtherDeductionReimbursement[];
 };
 
 function ImportReceiptButton() {
@@ -1439,12 +1452,22 @@ function ImportReceiptButton() {
         if (toAdd.length) setTolls((prev) => [...prev, ...toAdd]);
       }
 
+      const payment = {
+        ...parsed.payment,
+        id: parsed.payment.id || uid(),
+        tripIds: parsed.payment.tripIds ?? [],
+        fuelingIds: parsed.payment.fuelingIds ?? [],
+        fuelingItemIds: parsed.payment.fuelingItemIds ?? [],
+        expenseIds: parsed.payment.expenseIds ?? [],
+        tollIds: parsed.payment.tollIds ?? [],
+        deductionIds: parsed.payment.deductionIds ?? [],
+        reimbursementIds: parsed.payment.reimbursementIds ?? [],
+        receivedByItem: parsed.payment.receivedByItem ?? {},
+      } as Payment;
       setPayments((prev) => {
-        const exists = prev.some((p) => p.id === parsed.payment.id);
-        if (exists) {
-          return prev.map((p) => (p.id === parsed.payment.id ? parsed.payment : p));
-        }
-        return [...prev, parsed.payment];
+        const exists = prev.some((p) => p.id === payment.id);
+        if (exists) return prev.map((p) => (p.id === payment.id ? payment : p));
+        return [...prev, payment];
       });
 
       toast.success("Recebimento importado");
