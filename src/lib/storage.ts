@@ -442,12 +442,8 @@ export const useCommissionPayments = () =>
   useStored<CommissionPayment[]>(KEYS.commissionPayments, []);
 export const useSettings = () => useStored<AppSettings>(KEYS.settings, DEFAULT_SETTINGS);
 export const useNotes = () => useStored<Note[]>(KEYS.notes, []);
-const DEFAULT_SLAUGHTERHOUSES: Slaughterhouse[] = [
-  { id: "bataguassu", name: "Bataguassu", city: "Bataguassu", state: "MS", active: true, financialContacts: [], otherContacts: [] },
-  { id: "cassilandia", name: "Cassilândia", city: "Cassilândia", state: "MS", active: true, financialContacts: [], otherContacts: [] },
-];
 export const useSlaughterhouses = () =>
-  useStored<Slaughterhouse[]>(KEYS.slaughterhouses, DEFAULT_SLAUGHTERHOUSES);
+  useStored<Slaughterhouse[]>(KEYS.slaughterhouses, []);
 
 // --- Legacy hooks for backward compat (configuracoes import) ---
 export const usePriceTiers = () => useStored<OldPriceTier[]>(KEYS.legacyTiers, []);
