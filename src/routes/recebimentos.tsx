@@ -246,10 +246,10 @@ function ReceiptsTab() {
 
   const generatePDF = async (p: Payment) => {
     try {
-      const selTrips = trips.filter((t) => p.tripIds.includes(t.id));
-      const selFuel = fuelings.filter((f) => p.fuelingIds.includes(f.id));
-      const selExp = expenses.filter((e) => p.expenseIds.includes(e.id));
-      const selTolls = tolls.filter((t) => p.tollIds.includes(t.id));
+      const selTrips = trips.filter((t) => (p.tripIds ?? []).includes(t.id));
+      const selFuel = fuelings.filter((f) => (p.fuelingIds ?? []).includes(f.id) || (p.fuelingItemIds ?? []).some((id) => id.startsWith(`${f.id}:`)));
+      const selExp = expenses.filter((e) => (p.expenseIds ?? []).includes(e.id));
+      const selTolls = tolls.filter((t) => (p.tollIds ?? []).includes(t.id));
 
       const content: unknown[] = [
         pdfKpiRow([
@@ -407,7 +407,7 @@ function ReceiptsTab() {
           widths: ["*", "auto"],
           body: [
             ["Valor bruto (viagens)", formatBRL(p.grossValue)],
-            [`Ressarcimentos`, `+ ${formatBRL(p.reimbursedValue)}`],
+            [`Ressarcimentos`, `+ ${formatBRL(p.reimbursedValue ?? p.reimbursementsValue ?? 0)}`],
             [
               `Aluguel da carreta (${(p.rentPercent * 100).toFixed(0)}%)`,
               `- ${formatBRL(p.rentValue)}`,
@@ -540,15 +540,15 @@ function ReceiptsTab() {
                       </span>
                       <Separator orientation="vertical" className="h-4" />
                       <Badge variant="secondary" className="font-medium">
-                        {p.tripIds.length} viagem(ns)
+                        {(p.tripIds ?? []).length} viagem(ns)
                       </Badge>
-                      {p.fuelingIds.length > 0 && (
+                      {(p.fuelingIds ?? p.fuelingItemIds ?? []).length > 0 && (
                         <Badge variant="outline">{p.fuelingIds.length} combustível(is)</Badge>
                       )}
-                      {p.expenseIds.length > 0 && (
+                      {(p.expenseIds ?? []).length > 0 && (
                         <Badge variant="outline">{p.expenseIds.length} manutenção(ões)</Badge>
                       )}
-                      {p.tollIds.length > 0 && (
+                      {(p.tollIds ?? []).length > 0 && (
                         <Badge variant="outline">{p.tollIds.length} pedágio(s)</Badge>
                       )}
                     </div>
@@ -560,13 +560,13 @@ function ReceiptsTab() {
                       <div>
                         <span className="text-muted-foreground">Ressarcimentos</span>
                         <p className="font-semibold text-emerald-600">
-                          + {formatBRL(p.reimbursedValue)}
+                          + {formatBRL(p.reimbursedValue ?? p.reimbursementsValue ?? 0)}
                         </p>
                       </div>
                       <div>
                         <span className="text-muted-foreground">Aluguel + Descontos</span>
                         <p className="font-semibold text-destructive">
-                          - {formatBRL(p.rentValue + p.deductedValue)}
+                          - {formatBRL(p.rentValue + (p.deductedValue ?? Math.abs(p.deductionsValue ?? 0)))}
                         </p>
                       </div>
                       <div>
