@@ -224,6 +224,7 @@ function ReceiptsTab() {
   const [drivers] = useDrivers();
   const [settings] = useSettings();
   const [open, setOpen] = useState(false);
+  const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
   const [jsonEditItem, setJsonEditItem] = useState<Payment | null>(null);
   const [jsonEditOpen, setJsonEditOpen] = useState(false);
 
@@ -245,10 +246,10 @@ function ReceiptsTab() {
 
   const generatePDF = async (p: Payment) => {
     try {
-      const selTrips = trips.filter((t) => p.tripIds.includes(t.id));
-      const selFuel = fuelings.filter((f) => p.fuelingIds.includes(f.id));
-      const selExp = expenses.filter((e) => p.expenseIds.includes(e.id));
-      const selTolls = tolls.filter((t) => p.tollIds.includes(t.id));
+      const selTrips = trips.filter((t) => (p.tripIds ?? []).includes(t.id));
+      const selFuel = fuelings.filter((f) => (p.fuelingIds ?? []).includes(f.id) || (p.fuelingItemIds ?? []).some((id) => id.startsWith(`${f.id}:`)));
+      const selExp = expenses.filter((e) => (p.expenseIds ?? []).includes(e.id));
+      const selTolls = tolls.filter((t) => (p.tollIds ?? []).includes(t.id));
 
       const content: unknown[] = [
         pdfKpiRow([
@@ -406,7 +407,7 @@ function ReceiptsTab() {
           widths: ["*", "auto"],
           body: [
             ["Valor bruto (viagens)", formatBRL(p.grossValue)],
-            [`Ressarcimentos`, `+ ${formatBRL(p.reimbursedValue)}`],
+            [`Ressarcimentos`, `+ ${formatBRL(p.reimbursedValue ?? p.reimbursementsValue ?? 0)}`],
             [
               `Aluguel da carreta (${(p.rentPercent * 100).toFixed(0)}%)`,
               `- ${formatBRL(p.rentValue)}`,
@@ -466,7 +467,7 @@ function ReceiptsTab() {
                 <Plus className="mr-1 h-4 w-4" /> Novo recebimento
               </Button>
             </DialogTrigger>
-            {open && <ReceiptDialog onSaved={() => setOpen(false)} />}
+            {open && <ReceiptDialog payment={editingPayment} onSaved={() => { setOpen(false); setEditingPayment(null); }} />}
           </Dialog>
           <ImportReceiptButton />
         </div>
@@ -539,15 +540,15 @@ function ReceiptsTab() {
                       </span>
                       <Separator orientation="vertical" className="h-4" />
                       <Badge variant="secondary" className="font-medium">
-                        {p.tripIds.length} viagem(ns)
+                        {(p.tripIds ?? []).length} viagem(ns)
                       </Badge>
-                      {p.fuelingIds.length > 0 && (
+                      {(p.fuelingIds ?? p.fuelingItemIds ?? []).length > 0 && (
                         <Badge variant="outline">{p.fuelingIds.length} combustível(is)</Badge>
                       )}
-                      {p.expenseIds.length > 0 && (
+                      {(p.expenseIds ?? []).length > 0 && (
                         <Badge variant="outline">{p.expenseIds.length} manutenção(ões)</Badge>
                       )}
-                      {p.tollIds.length > 0 && (
+                      {(p.tollIds ?? []).length > 0 && (
                         <Badge variant="outline">{p.tollIds.length} pedágio(s)</Badge>
                       )}
                     </div>
@@ -559,13 +560,13 @@ function ReceiptsTab() {
                       <div>
                         <span className="text-muted-foreground">Ressarcimentos</span>
                         <p className="font-semibold text-emerald-600">
-                          + {formatBRL(p.reimbursedValue)}
+                          + {formatBRL(p.reimbursedValue ?? p.reimbursementsValue ?? 0)}
                         </p>
                       </div>
                       <div>
                         <span className="text-muted-foreground">Aluguel + Descontos</span>
                         <p className="font-semibold text-destructive">
-                          - {formatBRL(p.rentValue + p.deductedValue)}
+                          - {formatBRL(p.rentValue + (p.deductedValue ?? Math.abs(p.deductionsValue ?? 0)))}
                         </p>
                       </div>
                       <div>
@@ -604,6 +605,17 @@ function ReceiptsTab() {
                         title="Gerar PDF"
                       >
                         <FileDown className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        title="Editar recebimento"
+                        onClick={() => {
+setEditingPayment(p);
+  setOpen(true);
+                        }}
+                      >
+                        <Pencil className="h-4 w-4" />
                       </Button>
                       {settings.editorMode && (
                         <Button
@@ -647,7 +659,7 @@ function ReceiptsTab() {
   );
 }
 
-function ReceiptDialog({ onSaved }: { onSaved: () => void }) {
+function ReceiptDialog({ onSaved, payment }: { onSaved: () => void; payment?: Payment | null }) {
   const [payments, setPayments] = usePayments();
   const [trips, setTrips] = useActiveTrips();
   const [fuelings, setFuelings] = useFuelings();
@@ -669,7 +681,7 @@ function ReceiptDialog({ onSaved }: { onSaved: () => void }) {
   const [cteInput, setCteInput] = useState("");
 
   const lockedTrips = useMemo(() => new Set(payments.flatMap((p) => p.tripIds)), [payments]);
-  const lockedFuel = useMemo(() => new Set(payments.flatMap((p) => p.fuelingIds)), [payments]);
+  const lockedFuel = useMemo(() => new Set(payments.flatMap((p) => p.fuelingIds ?? [])), [payments]);
   const lockedExp = useMemo(() => new Set(payments.flatMap((p) => p.expenseIds)), [payments]);
   const lockedTolls = useMemo(() => new Set(payments.flatMap((p) => p.tollIds)), [payments]);
 
@@ -814,6 +826,19 @@ function ReceiptDialog({ onSaved }: { onSaved: () => void }) {
     }
   };
 
+  const buildReceiptRecord = (received: number): Payment => {
+    const calculatedReceivedValue = perTripTotal - fuelDesc + fuelRess - expDesc + expRess - tollDesc + tollRess;
+    const receivedByItem: Record<string, number> = {};
+    selTrips.forEach((trip) => { receivedByItem[trip.id] = tripReceivedValues[trip.id] === undefined || tripReceivedValues[trip.id] === "" ? trip.finalValue : Number(tripReceivedValues[trip.id]) || 0; });
+    selTolls.forEach((toll) => { receivedByItem[toll.id] = tollAmount(toll); });
+    return {
+      id: uid(), date, destination: destFilter as Destination, tripIds, deductionIds: [], expenseIds: expIds, fuelingItemIds, reimbursementIds: [], tollIds,
+      deductionsValue: 0, expenseValue: expRess - expDesc, fuelingsValue: fuelRess - fuelDesc, reimbursementsValue: 0, tollValue: tollRess - tollDesc,
+      rentPercent: RENT_PERCENT, grossValue, rentValue, reimbursedValue: fuelRess + expRess + tollRess, deductedValue: fuelDesc + expDesc + tollDesc,
+      expectedValue, calculatedReceivedValue, receivedValue: received, receivedDifference: received - calculatedReceivedValue, receivedByItem, notes: notes.trim() || undefined,
+    };
+  };
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!date) {
@@ -843,26 +868,7 @@ function ReceiptDialog({ onSaved }: { onSaved: () => void }) {
         tripRecv[t.id] = t.finalValue;
       }
     }
-    const p: Payment = {
-      id: uid(),
-      date,
-      destination: destFilter as Destination,
-      tripIds,
-      fuelingIds: fuelIds,
-      expenseIds: expIds,
-      tollIds,
-      rentPercent: RENT_PERCENT,
-      grossValue,
-      rentValue,
-      reimbursedValue,
-      deductedValue,
-      expectedValue,
-      receivedValue: rv,
-      tripReceivedValues: Object.keys(tripRecv).length > 0 ? tripRecv : undefined,
-      tollReceivedValues: Object.keys(tollReceivedValues).length > 0 ? Object.fromEntries(Object.entries(tollReceivedValues).map(([id, value]) => [id, Number(value) || 0])) : undefined,
-      fuelingItemIds: fuelingItemIds.length > 0 ? fuelingItemIds : undefined,
-      notes: notes.trim() || undefined,
-    };
+    const p = buildReceiptRecord(rv);
     setPayments((prev) => [...prev, p]);
     toast.success("Recebimento registrado");
     if (settings.receiptSound) {
@@ -890,32 +896,7 @@ function ReceiptDialog({ onSaved }: { onSaved: () => void }) {
         tripRecv[t.id] = t.finalValue;
       }
     }
-    const registry = {
-      type: "registro-recebimento",
-      version: 1,
-      exportedAt: new Date().toISOString(),
-      payment: {
-        id: uid(),
-        date,
-        tripIds,
-        fuelingIds: fuelIds,
-        expenseIds: expIds,
-        tollIds,
-        rentPercent: RENT_PERCENT,
-        grossValue,
-        rentValue,
-        reimbursedValue,
-        deductedValue,
-        expectedValue,
-        receivedValue: rv,
-        tripReceivedValues: Object.keys(tripRecv).length > 0 ? tripRecv : undefined,
-        notes: notes.trim() || undefined,
-      } as Payment,
-      trips: selTrips.map((t) => ({ ...t })),
-      fuelings: selFuel.map((f) => ({ ...f })),
-      expenses: selExp.map((e) => ({ ...e })),
-      tolls: selTolls.map((t) => ({ ...t })),
-    };
+    const registry = buildReceiptRecord(rv);
     const blob = new Blob([JSON.stringify(registry, null, 2)], {
       type: "application/json",
     });
@@ -950,7 +931,7 @@ function ReceiptDialog({ onSaved }: { onSaved: () => void }) {
     return t.manualDistance ?? 0;
   };
 
-  if (alternativeLayout) return <AlternativeLayoutDialog open title="Novo recebimento" onBack={onSaved} />;
+  if (alternativeLayout) return <AlternativeLayoutDialog open title={payment ? "Editar recebimento" : "Novo recebimento"} payment={payment} onBack={onSaved} />;
 
   return (
     <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -1424,6 +1405,8 @@ type RegistryFile = {
   fuelings?: Fueling[];
   expenses?: Expense[];
   tolls?: Toll[];
+  deductions?: OtherDeductionReimbursement[];
+  reimbursements?: OtherDeductionReimbursement[];
 };
 
 function ImportReceiptButton() {
@@ -1470,12 +1453,22 @@ function ImportReceiptButton() {
         if (toAdd.length) setTolls((prev) => [...prev, ...toAdd]);
       }
 
+      const payment = {
+        ...parsed.payment,
+        id: parsed.payment.id || uid(),
+        tripIds: parsed.payment.tripIds ?? [],
+        fuelingIds: parsed.payment.fuelingIds ?? [],
+        fuelingItemIds: parsed.payment.fuelingItemIds ?? [],
+        expenseIds: parsed.payment.expenseIds ?? [],
+        tollIds: parsed.payment.tollIds ?? [],
+        deductionIds: parsed.payment.deductionIds ?? [],
+        reimbursementIds: parsed.payment.reimbursementIds ?? [],
+        receivedByItem: parsed.payment.receivedByItem ?? {},
+      } as Payment;
       setPayments((prev) => {
-        const exists = prev.some((p) => p.id === parsed.payment.id);
-        if (exists) {
-          return prev.map((p) => (p.id === parsed.payment.id ? parsed.payment : p));
-        }
-        return [...prev, parsed.payment];
+        const exists = prev.some((p) => p.id === payment.id);
+        if (exists) return prev.map((p) => (p.id === payment.id ? payment : p));
+        return [...prev, payment];
       });
 
       toast.success("Recebimento importado");

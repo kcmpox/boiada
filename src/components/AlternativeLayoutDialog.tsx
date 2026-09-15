@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, useEffect } from "react"
 import { Code2, Download, Save } from "lucide-react"
 import { toast } from "sonner"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -18,7 +18,7 @@ import type { Fueling, Expense, OtherDeductionReimbursement } from "@/lib/storag
 const money = (value: number) => value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
 const tabs = ["Viagens", "Abastecimentos", "Manutenções", "Pedágios", "Descontos", "Reembolsos"]
 
-export function AlternativeLayoutDialog({ open, title, onBack }: { open: boolean; title: string; onBack: () => void }) {
+export function AlternativeLayoutDialog({ open, title, onBack, payment }: { open: boolean; title: string; onBack: () => void; payment?: any }) {
   const [trucks] = useTrucks()
   const [slaughterhouses] = useSlaughterhouses()
   const [trips] = useTrips()
@@ -27,7 +27,7 @@ export function AlternativeLayoutDialog({ open, title, onBack }: { open: boolean
   const [tolls] = useTolls()
   const [deductions] = useDeductions()
   const [reimbursements] = useReimbursements()
-  const [, setPayments] = usePayments()
+  const [payments, setPayments] = usePayments()
   const [truckId, setTruckId] = useState("")
   const [destination, setDestination] = useState("")
   const [dateFrom, setDateFrom] = useState("")
@@ -42,6 +42,17 @@ export function AlternativeLayoutDialog({ open, title, onBack }: { open: boolean
   const [recordFormOpen, setRecordFormOpen] = useState(false)
   const [receivedByItem, setReceivedByItem] = useState<Record<string, string>>({})
 
+  useEffect(() => {
+    if (!payment) return
+    setPaymentDate(payment.date ?? new Date().toISOString().slice(0, 10))
+    setTruckId(payment.truckId ?? "")
+    setDestination(payment.destination ?? "")
+    setSelectedIds([...(payment.tripIds ?? []), ...(payment.fuelingItemIds ?? []), ...(payment.expenseIds ?? []), ...(payment.tollIds ?? []), ...(payment.deductionIds ?? []), ...(payment.reimbursementIds ?? [])])
+    setReceivedValue(payment.receivedValue === undefined ? "" : String(payment.receivedValue))
+    setReceivedByItem(Object.fromEntries(Object.entries(payment.receivedByItem ?? {}).map(([id, value]) => [id, String(value)])))
+    setNotes(payment.notes ?? "")
+  }, [payment])
+
   const tripTolls = useMemo(() => (Array.isArray(tolls) ? tolls : []).filter((toll) => toll && toll.responsibility !== "minha").map((toll) => ({ id: String(toll.id), date: String(toll.dateTime ?? ""), truckId: String(toll.truckId ?? ""), description: String(toll.tollName ?? "Pedágio"), amount: Number(toll.value) || 0, responsibility: toll.responsibility, tripId: toll.tripId })), [tolls])
   const fuelingItems = useMemo(() => (Array.isArray(fuelings) ? fuelings : []).flatMap((fueling) => (Array.isArray(fueling?.items) ? fueling.items : []).map((item, index) => ({ id: `${fueling.id}:${index}`, fuelingId: fueling.id, date: String(fueling.date ?? ""), truckId: String(fueling.truckId ?? ""), description: String(item.description ?? "Abastecimento"), amount: Math.max(0, Number(item.quantity) * Number(item.unitPrice) - Number(item.discount || 0)), responsibility: item.responsibility ?? fueling.responsibility }))), [fuelings])
   const maintenanceItems = useMemo(() => (Array.isArray(expenses) ? expenses : []).filter(Boolean).map((expense) => ({ id: String(expense.id), date: String(expense.date ?? ""), truckId: String(expense.truckId ?? ""), description: String(expense.description ?? expense.category ?? "Manutenção"), amount: Number(expense.value) || 0, responsibility: expense.responsibility })), [expenses])
@@ -49,7 +60,7 @@ export function AlternativeLayoutDialog({ open, title, onBack }: { open: boolean
 
   const filteredTrips = useMemo(() => {
     if (!truckId || !destination) return []
-    return trips.filter((trip) => trip.truckId === truckId && trip.destination === destination && (!dateFrom || trip.date >= dateFrom) && trip.date <= paymentDate)
+    return trips.filter((trip) => trip.truckId === truckId && trip.destination === destination && (!dateFrom || trip.date >= dateFrom) && trip.date <= paymentDate && !payments.some((item) => item.id !== payment?.id && item.tripIds?.includes(trip.id)))
   }, [dateFrom, destination, paymentDate, trips, truckId])
   const selectedTrips = filteredTrips.filter((trip) => selectedIds.includes(trip.id))
   const selectedFuelingItems = fuelingItems.filter((item) => selectedIds.includes(item.id) && item.responsibility !== "minha")
@@ -80,11 +91,13 @@ export function AlternativeLayoutDialog({ open, title, onBack }: { open: boolean
   const parsedReceived = Number(receivedValue.replace(",", "."))
   const finalReceivedValue = receivedValue.trim() === "" || !Number.isFinite(parsedReceived) ? computedReceivedTotal : parsedReceived
   const receivedDifference = Number((finalReceivedValue - computedReceivedTotal).toFixed(2))
-  const jsonValue = { date: paymentDate, truckId, destination, tripIds: selectedTrips.map((trip) => trip.id), trips: selectedTrips.map((trip) => ({ ...trip, cte: tripEdits[trip.id]?.cte ?? trip.cte, minuta: tripEdits[trip.id]?.minuta ?? trip.minuta })), fuelingItemIds: selectedFuelingItems.map((item) => item.id), fuelings: selectedFuelingItems, tollIds: tripTolls.filter((toll) => selectedIds.includes(toll.id)).map((toll) => toll.id), tolls: tripTolls.filter((toll) => selectedIds.includes(toll.id)), expenseIds: selectedExpenses.map((item) => item.id), expenses: selectedExpenses, deductionIds: selectedDeductions.map((item) => item.id), deductions: selectedDeductions, reimbursementIds: selectedReimbursements.map((item) => item.id), reimbursements: selectedReimbursements, grossValue, rentValue, reimbursedValue: selectedReimbursements.reduce((sum, item) => sum + item.amount, 0), deductedValue: selectedDeductions.reduce((sum, item) => sum + item.amount, 0), expectedValue, fuelingsValue, deductionsValue, reimbursementsValue, receivedValue: finalReceivedValue, calculatedReceivedValue: computedReceivedTotal, receivedDifference, receivedByItem, notes }
+  const completeReceivedByItem = Object.fromEntries([...selectedTrips.map((item) => [item.id, informedValue(item.id, (item.tableValue ?? item.finalValue ?? 0) * 0.9)]), ...selectedFuelingItems.map((item) => [item.id, informedValue(item.id, item.amount)]), ...selectedExpenses.map((item) => [item.id, informedValue(item.id, item.amount)]), ...tripTolls.filter((item) => selectedIds.includes(item.id)).map((item) => [item.id, informedValue(item.id, item.amount)]), ...selectedDeductions.map((item) => [item.id, informedValue(item.id, item.amount)]), ...selectedReimbursements.map((item) => [item.id, informedValue(item.id, item.amount)])])
+  const paymentJson = { id: payment?.id ?? crypto.randomUUID(), date: paymentDate, truckId, destination, deductionIds: selectedDeductions.map((item) => item.id), expenseIds: selectedExpenses.map((item) => item.id), fuelingItemIds: selectedFuelingItems.map((item) => item.id), reimbursementIds: selectedReimbursements.map((item) => item.id), tollIds: tripTolls.filter((toll) => selectedIds.includes(toll.id)).map((toll) => toll.id), tripIds: selectedTrips.map((trip) => trip.id), deductionsValue: -deductionsValue, expenseValue: maintenanceValue, fuelingsValue, reimbursementsValue, tollValue: tollsValue, grossValue, rentPercent: 0.1, rentValue, expectedValue, calculatedReceivedValue: computedReceivedTotal, receivedValue: finalReceivedValue, receivedDifference, receivedByItem: completeReceivedByItem, notes }
+  const jsonValue = { type: "registro-recebimento", version: 2, exportedAt: new Date().toISOString(), payment: paymentJson, trips: selectedTrips, fuelings: selectedFuelingItems, tolls: tripTolls.filter((toll) => selectedIds.includes(toll.id)), expenses: selectedExpenses, deductions: selectedDeductions, reimbursements: selectedReimbursements }
 
   const saveReceipt = () => {
     if (!truckId || !destination) { toast.error("Selecione o caminhão e o frigorífico antes de salvar."); return }
-    setPayments((current) => [{ id: crypto.randomUUID(), date: paymentDate, destination: destination as any, tripIds: selectedTrips.map((trip) => trip.id), fuelingIds: selectedFuelingItems.map((item) => item.fuelingId), expenseIds: selectedExpenses.map((item) => item.id), tollIds: tripTolls.filter((toll) => selectedIds.includes(toll.id)).map((toll) => toll.id), rentPercent: 0.1, grossValue, rentValue, reimbursedValue: selectedReimbursements.reduce((sum, item) => sum + item.amount, 0), deductedValue: selectedDeductions.reduce((sum, item) => sum + item.amount, 0), expectedValue: jsonValue.expectedValue, receivedValue: jsonValue.receivedValue, fuelingItemIds: selectedFuelingItems.map((item) => item.id), deductionIds: selectedDeductions.map((item) => item.id), reimbursementIds: selectedReimbursements.map((item) => item.id), receivedByItem, calculatedReceivedValue: computedReceivedTotal, receivedDifference, details: jsonValue, notes } as any, ...current]);
+    setPayments((current) => [{ ...paymentJson, destination: destination as any } as any, ...current.filter((item) => item.id !== paymentJson.id)]);
     toast.success("Recebimento salvo");
     onBack()
   }
