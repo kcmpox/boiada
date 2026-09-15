@@ -669,7 +669,7 @@ function ReceiptDialog({ onSaved }: { onSaved: () => void }) {
   const [cteInput, setCteInput] = useState("");
 
   const lockedTrips = useMemo(() => new Set(payments.flatMap((p) => p.tripIds)), [payments]);
-  const lockedFuel = useMemo(() => new Set(payments.flatMap((p) => p.fuelingIds)), [payments]);
+  const lockedFuel = useMemo(() => new Set(payments.flatMap((p) => p.fuelingIds ?? [])), [payments]);
   const lockedExp = useMemo(() => new Set(payments.flatMap((p) => p.expenseIds)), [payments]);
   const lockedTolls = useMemo(() => new Set(payments.flatMap((p) => p.tollIds)), [payments]);
 
@@ -814,6 +814,19 @@ function ReceiptDialog({ onSaved }: { onSaved: () => void }) {
     }
   };
 
+  const buildReceiptRecord = (received: number): Payment => {
+    const calculatedReceivedValue = perTripTotal - fuelDesc + fuelRess - expDesc + expRess - tollDesc + tollRess;
+    const receivedByItem: Record<string, number> = {};
+    selTrips.forEach((trip) => { receivedByItem[trip.id] = tripReceivedValues[trip.id] === undefined || tripReceivedValues[trip.id] === "" ? trip.finalValue : Number(tripReceivedValues[trip.id]) || 0; });
+    selTolls.forEach((toll) => { receivedByItem[toll.id] = tollAmount(toll); });
+    return {
+      id: uid(), date, destination: destFilter as Destination, tripIds, deductionIds: [], expenseIds: expIds, fuelingItemIds, reimbursementIds: [], tollIds,
+      deductionsValue: 0, expenseValue: expRess - expDesc, fuelingsValue: fuelRess - fuelDesc, reimbursementsValue: 0, tollValue: tollRess - tollDesc,
+      rentPercent: RENT_PERCENT, grossValue, rentValue, reimbursedValue: fuelRess + expRess + tollRess, deductedValue: fuelDesc + expDesc + tollDesc,
+      expectedValue, calculatedReceivedValue, receivedValue: received, receivedDifference: received - calculatedReceivedValue, receivedByItem, notes: notes.trim() || undefined,
+    };
+  };
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!date) {
@@ -843,26 +856,7 @@ function ReceiptDialog({ onSaved }: { onSaved: () => void }) {
         tripRecv[t.id] = t.finalValue;
       }
     }
-    const p: Payment = {
-      id: uid(),
-      date,
-      destination: destFilter as Destination,
-      tripIds,
-      fuelingIds: fuelIds,
-      expenseIds: expIds,
-      tollIds,
-      rentPercent: RENT_PERCENT,
-      grossValue,
-      rentValue,
-      reimbursedValue,
-      deductedValue,
-      expectedValue,
-      receivedValue: rv,
-      tripReceivedValues: Object.keys(tripRecv).length > 0 ? tripRecv : undefined,
-      tollReceivedValues: Object.keys(tollReceivedValues).length > 0 ? Object.fromEntries(Object.entries(tollReceivedValues).map(([id, value]) => [id, Number(value) || 0])) : undefined,
-      fuelingItemIds: fuelingItemIds.length > 0 ? fuelingItemIds : undefined,
-      notes: notes.trim() || undefined,
-    };
+    const p = buildReceiptRecord(rv);
     setPayments((prev) => [...prev, p]);
     toast.success("Recebimento registrado");
     if (settings.receiptSound) {
@@ -890,32 +884,7 @@ function ReceiptDialog({ onSaved }: { onSaved: () => void }) {
         tripRecv[t.id] = t.finalValue;
       }
     }
-    const registry = {
-      type: "registro-recebimento",
-      version: 1,
-      exportedAt: new Date().toISOString(),
-      payment: {
-        id: uid(),
-        date,
-        tripIds,
-        fuelingIds: fuelIds,
-        expenseIds: expIds,
-        tollIds,
-        rentPercent: RENT_PERCENT,
-        grossValue,
-        rentValue,
-        reimbursedValue,
-        deductedValue,
-        expectedValue,
-        receivedValue: rv,
-        tripReceivedValues: Object.keys(tripRecv).length > 0 ? tripRecv : undefined,
-        notes: notes.trim() || undefined,
-      } as Payment,
-      trips: selTrips.map((t) => ({ ...t })),
-      fuelings: selFuel.map((f) => ({ ...f })),
-      expenses: selExp.map((e) => ({ ...e })),
-      tolls: selTolls.map((t) => ({ ...t })),
-    };
+    const registry = buildReceiptRecord(rv);
     const blob = new Blob([JSON.stringify(registry, null, 2)], {
       type: "application/json",
     });

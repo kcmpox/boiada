@@ -209,7 +209,7 @@ export interface Payment {
   date: string;
   destination: Destination;
   tripIds: string[];
-  fuelingIds: string[];
+  fuelingIds?: string[];
   expenseIds: string[];
   tollIds: string[];
   rentPercent: number;
@@ -223,6 +223,16 @@ export interface Payment {
   tripReceivedValues?: Record<string, number>;
   tollReceivedValues?: Record<string, number>;
   fuelingItemIds?: string[];
+  deductionIds?: string[];
+  expenseValue?: number;
+  fuelingsValue?: number;
+  deductionsValue?: number;
+  reimbursementsValue?: number;
+  tollValue?: number;
+  calculatedReceivedValue?: number;
+  receivedDifference?: number;
+  receivedByItem?: Record<string, number>;
+  reimbursementIds?: string[];
   notes?: string;
 }
 
