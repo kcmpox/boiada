@@ -224,6 +224,7 @@ function ReceiptsTab() {
   const [drivers] = useDrivers();
   const [settings] = useSettings();
   const [open, setOpen] = useState(false);
+  const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
   const [jsonEditItem, setJsonEditItem] = useState<Payment | null>(null);
   const [jsonEditOpen, setJsonEditOpen] = useState(false);
 
@@ -466,7 +467,7 @@ function ReceiptsTab() {
                 <Plus className="mr-1 h-4 w-4" /> Novo recebimento
               </Button>
             </DialogTrigger>
-            {open && <ReceiptDialog onSaved={() => setOpen(false)} />}
+            {open && <ReceiptDialog payment={editingPayment} onSaved={() => { setOpen(false); setEditingPayment(null); }} />}
           </Dialog>
           <ImportReceiptButton />
         </div>
@@ -610,8 +611,8 @@ function ReceiptsTab() {
                         size="sm"
                         title="Editar recebimento"
                         onClick={() => {
-                          setJsonEditItem(p);
-                          setJsonEditOpen(true);
+setEditingPayment(p);
+  setOpen(true);
                         }}
                       >
                         <Pencil className="h-4 w-4" />
@@ -658,7 +659,7 @@ function ReceiptsTab() {
   );
 }
 
-function ReceiptDialog({ onSaved }: { onSaved: () => void }) {
+function ReceiptDialog({ onSaved, payment }: { onSaved: () => void; payment?: Payment | null }) {
   const [payments, setPayments] = usePayments();
   const [trips, setTrips] = useActiveTrips();
   const [fuelings, setFuelings] = useFuelings();
@@ -930,7 +931,7 @@ function ReceiptDialog({ onSaved }: { onSaved: () => void }) {
     return t.manualDistance ?? 0;
   };
 
-  if (alternativeLayout) return <AlternativeLayoutDialog open title="Novo recebimento" onBack={onSaved} />;
+  if (alternativeLayout) return <AlternativeLayoutDialog open title={payment ? "Editar recebimento" : "Novo recebimento"} payment={payment} onBack={onSaved} />;
 
   return (
     <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
