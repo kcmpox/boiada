@@ -466,7 +466,7 @@ function ReceiptsTab() {
                 <Plus className="mr-1 h-4 w-4" /> Novo recebimento
               </Button>
             </DialogTrigger>
-            <ReceiptDialog onSaved={() => setOpen(false)} />
+            {open && <ReceiptDialog onSaved={() => setOpen(false)} />}
           </Dialog>
           <ImportReceiptButton />
         </div>
@@ -657,7 +657,7 @@ function ReceiptDialog({ onSaved }: { onSaved: () => void }) {
   const [slaughterhouses] = useSlaughterhouses();
   const activeSlaughterhouses = slaughterhouses.filter((s) => s.active);
   const [settings] = useSettings();
-  const [alternativeLayout, setAlternativeLayout] = useState(false);
+  const [alternativeLayout, setAlternativeLayout] = useState(true);
   const [truckFilter, setTruckFilter] = useState<string>("__all__");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -950,7 +950,7 @@ function ReceiptDialog({ onSaved }: { onSaved: () => void }) {
     return t.manualDistance ?? 0;
   };
 
-  if (alternativeLayout) return <AlternativeLayoutDialog open title="Novo recebimento" onBack={() => setAlternativeLayout(false)} />;
+  if (alternativeLayout) return <AlternativeLayoutDialog open title="Novo recebimento" onBack={onSaved} />;
 
   return (
     <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
