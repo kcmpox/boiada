@@ -466,7 +466,7 @@ function ReceiptsTab() {
                 <Plus className="mr-1 h-4 w-4" /> Novo recebimento
               </Button>
             </DialogTrigger>
-            <ReceiptDialog onSaved={() => setOpen(false)} />
+            {open && <ReceiptDialog onSaved={() => setOpen(false)} />}
           </Dialog>
           <ImportReceiptButton />
         </div>
