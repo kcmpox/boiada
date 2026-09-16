@@ -234,6 +234,7 @@ export interface Payment {
   receivedByItem?: Record<string, number>;
   reimbursementIds?: string[];
   notes?: string;
+  adjustments?: Array<{ deemed_accepted?: { value: number; dateTime: string } }>;
 }
 
 export interface OtherDeductionReimbursement {
