@@ -21,7 +21,7 @@ export function OtherFinancialEntryDialog({ mode }: { mode: EntryMode }) {
   const [trips] = useActiveTrips();
   const [deductions, setDeductions] = useDeductions();
   const [reimbursements, setReimbursements] = useReimbursements();
-  const records = mode === "reembolso" ? reimbursements : deductions;
+  const records = (mode === "reembolso" ? reimbursements : deductions).slice().sort((a, b) => String(b.date).localeCompare(String(a.date)));
   const setRecords = mode === "reembolso" ? setReimbursements : setDeductions;
   const [form, setForm] = useState({ truckId: "", destination: "", tripId: "", date: new Date().toISOString().slice(0, 10), description: "", amount: "" });
   const [tripRef, setTripRef] = useState("");
@@ -39,7 +39,7 @@ export function OtherFinancialEntryDialog({ mode }: { mode: EntryMode }) {
       return;
     }
     const record: OtherDeductionReimbursement = { id: uid(), date: form.date, truckId: form.truckId, destination: form.destination, tripId: form.tripId || undefined, type: mode === "reembolso" ? "acrescimo" : "abatimento", category: "outros", amount, description: form.description.trim(), createdAt: new Date().toISOString() };
-    setRecords((previous) => editingId ? previous.map((item) => item.id === editingId ? { ...record, id: editingId, createdAt: item.createdAt } : item) : [record, ...previous]);
+    setRecords((previous) => { const next = editingId ? previous.map((item) => item.id === editingId ? { ...record, id: editingId, createdAt: item.createdAt } : item) : [record, ...previous]; return next; });
     setEditingId(null);
     setOpen(false);
     setForm({ truckId: "", destination: "", tripId: "", date: new Date().toISOString().slice(0, 10), description: "", amount: "" });

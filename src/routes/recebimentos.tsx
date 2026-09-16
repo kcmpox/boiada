@@ -543,7 +543,7 @@ function ReceiptsTab() {
                         {(p.tripIds ?? []).length} viagem(ns)
                       </Badge>
                       {(p.fuelingIds ?? p.fuelingItemIds ?? []).length > 0 && (
-                        <Badge variant="outline">{p.fuelingIds.length} combustível(is)</Badge>
+                        <Badge variant="outline">{(p.fuelingIds ?? p.fuelingItemIds ?? []).length} combustível(is)</Badge>
                       )}
                       {(p.expenseIds ?? []).length > 0 && (
                         <Badge variant="outline">{p.expenseIds.length} manutenção(ões)</Badge>
