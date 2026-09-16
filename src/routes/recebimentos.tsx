@@ -56,7 +56,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
-import { Plus, Trash2, Calendar, FileDown, Banknote, Code as Code2, Download, Upload, FileText, Search, Pencil } from "lucide-react";
+import { Plus, Trash2, Calendar, FileDown, Banknote, Code as Code2, Download, Upload, FileText, Search, Pencil, ThumbsUp, Reply } from "lucide-react";
 import { toast } from "sonner";
 import {
   buildPdfDoc,
@@ -98,7 +98,7 @@ function ReceiptsPage() {
   const [slaughterhouses] = useSlaughterhouses();
   const [payments] = usePayments();
   const [section, setSection] = useState<string>("historico");
-  const paymentDifference = (payment: Payment) => Number(payment.receivedValue ?? 0) - Number(payment.calculatedReceivedValue ?? payment.expectedValue ?? 0);
+  const paymentDifference = (payment: Payment) => Number(payment.receivedValue ?? 0) - Number(payment.expectedValue ?? 0);
   const isDivergentPayment = (payment: Payment) => Math.abs(paymentDifference(payment)) > 0.01;
   const divergentPaymentIds = useMemo(() => new Set(payments.filter(isDivergentPayment).map((payment) => payment.id)), [payments]);
   const hasDivergenceFor = (slaughterhouseId: string) => payments.some((payment) => String(payment.destination).toLowerCase() === String(slaughterhouseId).toLowerCase() && divergentPaymentIds.has(payment.id));
@@ -196,9 +196,9 @@ function ConstructionNotice({ title }: { title: string }) {
 
 function SlaughterhouseReceipts({ slaughterhouseId, name, city, state, payments }: { slaughterhouseId: string; name: string; city?: string; state?: string; payments: Payment[] }) {
   const place = [city, state].filter(Boolean).join(" / ");
-  const paymentDifference = (payment: Payment) => Number(payment.receivedValue ?? 0) - Number(payment.calculatedReceivedValue ?? payment.expectedValue ?? 0);
+  const paymentDifference = (payment: Payment) => Number(payment.receivedValue ?? 0) - Number(payment.expectedValue ?? 0);
   const divergentPayments = payments.filter((payment) => String(payment.destination).toLowerCase() === String(slaughterhouseId).toLowerCase() && Math.abs(paymentDifference(payment)) > 0.01).sort((a, b) => String(a.date).localeCompare(String(b.date)));
-  return <div className="space-y-5"><div><h2 className="text-2xl font-bold">{name}</h2><p className="text-sm text-muted-foreground">Incongruências e acertos deste frigorífico{place ? ` · ${place}` : ""}</p></div><Tabs defaultValue="divergencias" className="space-y-4"><TabsList><TabsTrigger value="divergencias">Divergências ({divergentPayments.length})</TabsTrigger><TabsTrigger value="em-breve">Em Breve</TabsTrigger></TabsList><TabsContent value="divergencias"><Card className="min-h-56 p-6">{divergentPayments.length === 0 ? <p className="py-12 text-center text-sm text-muted-foreground">Nenhum pagamento com divergência.</p> : <div className="space-y-3">{divergentPayments.map((payment) => <div key={payment.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4"><div><p className="font-semibold">Pagamento de {formatDateBR(payment.date)}</p><p className="text-sm text-muted-foreground">Esperado: {formatBRL(payment.calculatedReceivedValue ?? payment.expectedValue ?? 0)} · Recebido: {formatBRL(payment.receivedValue ?? 0)}</p></div><Badge variant="destructive">Diferença: {formatBRL(paymentDifference(payment))}</Badge></div>)}</div>}</Card></TabsContent><TabsContent value="em-breve"><ConstructionNotice title="Em Breve" /></TabsContent></Tabs><p className="text-xs text-muted-foreground">Identificador: {slaughterhouseId.slice(0, 8)}</p></div>;
+  return <div className="space-y-5"><div><h2 className="text-2xl font-bold">{name}</h2><p className="text-sm text-muted-foreground">Incongruências e acertos deste frigorífico{place ? ` · ${place}` : ""}</p></div><Tabs defaultValue="divergencias" className="space-y-4"><TabsList><TabsTrigger value="divergencias">Divergências ({divergentPayments.length})</TabsTrigger><TabsTrigger value="em-breve">Em Breve</TabsTrigger></TabsList><TabsContent value="divergencias"><Card className="min-h-56 p-6">{divergentPayments.length === 0 ? <p className="py-12 text-center text-sm text-muted-foreground">Nenhum pagamento com divergência.</p> : <div className="space-y-3">{divergentPayments.map((payment) => <div key={payment.id} className="group flex items-center gap-2"><div className="min-w-0 flex-1 rounded-lg border border-destructive/30 bg-destructive/5 p-4 transition-all duration-200 group-hover:flex-[0.88]"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-semibold">Pagamento de {formatDateBR(payment.date)}</p><p className="text-sm text-muted-foreground">Esperado: {formatBRL(payment.expectedValue ?? 0)} · Recebido: {formatBRL(payment.receivedValue ?? 0)}</p></div><Badge variant="destructive">Diferença: {formatBRL(paymentDifference(payment))}</Badge></div></div><div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity duration-200 group-hover:opacity-100" aria-label="Ações da divergência"><Button type="button" variant="outline" size="icon" aria-label="Marcar como conferido"><ThumbsUp className="h-4 w-4" /></Button><Button type="button" variant="outline" size="icon" aria-label="Responder divergência"><Reply className="h-4 w-4" /></Button><Button type="button" variant="outline" size="icon" aria-label="Excluir divergência"><Trash2 className="h-4 w-4" /></Button></div></div>)}</div>}</Card></TabsContent><TabsContent value="em-breve"><ConstructionNotice title="Em Breve" /></TabsContent></Tabs><p className="text-xs text-muted-foreground">Identificador: {slaughterhouseId.slice(0, 8)}</p></div>;
 }
 
 
@@ -1273,7 +1273,7 @@ value={date}
         </div>
 
         <div>
-          <Label>Observações (opcional)</Label>
+          <Label>Observa��ões (opcional)</Label>
           <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
         </div>
 
