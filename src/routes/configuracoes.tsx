@@ -1119,7 +1119,7 @@ function BackupSection() {
             id: p.id,
             data: p.date.slice(0, 10),
             viagens: p.tripIds.length,
-            combustiveis: p.fuelingIds.length,
+            combustiveis: (p.fuelingIds ?? []).length,
             manutencoes: p.expenseIds.length,
             pedagios: p.tollIds.length,
             bruto: p.grossValue,
