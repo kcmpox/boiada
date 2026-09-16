@@ -1438,7 +1438,7 @@ function BackupSection() {
         if (
           p.tripIds.some((id) => tripIds.has(id)) ||
           p.tollIds.some((id) => tollIds.has(id)) ||
-          p.fuelingIds.some((id) => fuelIds.has(id)) ||
+          (p.fuelingIds ?? []).some((id) => fuelIds.has(id)) ||
           p.expenseIds.some((id) => expIds.has(id))
         )
           payIds.add(p.id);
