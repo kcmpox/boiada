@@ -33,7 +33,12 @@ export function IntegrityCheckButton() {
 
       for (const field of ID_FIELDS) {
         for (const id of listOf(payment, field)) {
-          if (!receivedKeys.includes(id)) {
+          const baseId = field === "fuelingItemIds" ? id.split(":")[0] : id;
+          const hasReceived =
+            field === "fuelingItemIds"
+              ? receivedKeys.some((key) => key === id || key.split(":")[0] === baseId)
+              : receivedKeys.includes(id);
+          if (!hasReceived) {
             missingByPayment.push({ recebimento: payment.id, campo: field, id });
           }
           const key = `${field}::${id}`;
