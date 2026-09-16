@@ -463,6 +463,7 @@ function ReceiptsTab() {
             {open && <ReceiptDialog payment={editingPayment} onSaved={() => { setOpen(false); setEditingPayment(null); }} />}
           </Dialog>
           <ImportReceiptButton />
+          <IntegrityCheckButton />
         </div>
       </div>
 
