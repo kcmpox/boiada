@@ -96,7 +96,10 @@ const EXTRA_NAV_ITEMS: ReceiptNavItem[] = [
 
 function ReceiptsPage() {
   const [slaughterhouses] = useSlaughterhouses();
+  const [payments] = usePayments();
   const [section, setSection] = useState<string>("historico");
+  const divergentPaymentIds = useMemo(() => new Set(payments.filter((payment) => Math.abs(Number(payment.receivedDifference ?? ((payment.receivedValue ?? 0) - (payment.calculatedReceivedValue ?? payment.expectedValue ?? 0)))) > 0.01).map((payment) => payment.id)), [payments]);
+  const hasDivergenceFor = (slaughterhouseId: string) => payments.some((payment) => payment.destination === slaughterhouseId && divergentPaymentIds.has(payment.id));
 
   const slaughterhouseItems = useMemo<ReceiptNavItem[]>(
     () =>
@@ -142,7 +145,7 @@ function ReceiptsPage() {
             {navItems.map((item) => { const Icon = item.icon; const isActive = active.key === item.key; return (
               <button key={item.key} onClick={() => setSection(item.key)} className={cn("group flex min-w-[140px] flex-1 items-center gap-3 rounded-xl border px-3.5 py-3 text-left transition-all md:min-w-0 md:flex-none", isActive ? "border-primary/30 bg-primary/5 shadow-sm" : "border-transparent hover:border-border hover:bg-muted/50")}>
                 <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg", isActive ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}><Icon className="h-4 w-4" /></span>
-                <span className="min-w-0"><span className={cn("block truncate text-sm font-semibold", isActive ? "text-foreground" : "text-muted-foreground")}>{item.label}</span><span className="hidden truncate text-xs text-muted-foreground md:block">{item.desc}</span></span>
+                <span className="min-w-0"><span className={cn("block truncate text-sm font-semibold", hasDivergenceFor(item.key.slice("frigorifico:".length)) ? "text-destructive" : isActive ? "text-foreground" : "text-muted-foreground")}>{item.label}</span><span className="hidden truncate text-xs text-muted-foreground md:block">{item.desc}</span></span>
               </button>
             ); })}
           </div>
@@ -150,7 +153,7 @@ function ReceiptsPage() {
         <div className="min-w-0">
           <div className="mb-4 flex items-center gap-2 md:hidden"><span className="text-sm font-medium text-muted-foreground">{active.desc}</span></div>
           {active.key === "historico" && <ReceiptsTab />}
-          {currentSlaughterhouse && <SlaughterhouseReceipts key={currentSlaughterhouse.id} slaughterhouseId={currentSlaughterhouse.id} name={currentSlaughterhouse.name} city={currentSlaughterhouse.city} state={currentSlaughterhouse.state} />}
+          {currentSlaughterhouse && <SlaughterhouseReceipts key={currentSlaughterhouse.id} slaughterhouseId={currentSlaughterhouse.id} name={currentSlaughterhouse.name} city={currentSlaughterhouse.city} state={currentSlaughterhouse.state} payments={payments} />}
 
           {section === "outrosDescontos" && <div className="flex flex-col gap-4"><div><h2 className="text-2xl font-bold">Outros Descontos</h2><p className="text-sm text-muted-foreground">Registre descontos adicionais vinculados a viagens.</p></div><OtherFinancialEntryDialog mode="desconto" /></div>}
           {section === "outrosReembolsos" && <div className="flex flex-col gap-4"><div><h2 className="text-2xl font-bold">Outros Reembolsos</h2><p className="text-sm text-muted-foreground">Registre reembolsos adicionais vinculados a viagens.</p></div><OtherFinancialEntryDialog mode="reembolso" /></div>}
@@ -189,20 +192,10 @@ function ConstructionNotice({ title }: { title: string }) {
   );
 }
 
-function SlaughterhouseReceipts({ slaughterhouseId, name, city, state }: { slaughterhouseId: string; name: string; city?: string; state?: string }) {
+function SlaughterhouseReceipts({ slaughterhouseId, name, city, state, payments }: { slaughterhouseId: string; name: string; city?: string; state?: string; payments: Payment[] }) {
   const place = [city, state].filter(Boolean).join(" / ");
-  return (
-    <div className="space-y-5">
-      <div>
-        <h2 className="text-2xl font-bold">{name}</h2>
-        <p className="text-sm text-muted-foreground">
-          Incongruências e acertos deste frigorífico{place ? ` · ${place}` : ""}
-        </p>
-      </div>
-      <ConstructionNotice title={name} />
-      <p className="text-xs text-muted-foreground">Identificador: {slaughterhouseId.slice(0, 8)}</p>
-    </div>
-  );
+  const divergentPayments = payments.filter((payment) => payment.destination === slaughterhouseId && Math.abs(Number(payment.receivedDifference ?? ((payment.receivedValue ?? 0) - (payment.calculatedReceivedValue ?? payment.expectedValue ?? 0)))) > 0.01).sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  return <div className="space-y-5"><div><h2 className="text-2xl font-bold">{name}</h2><p className="text-sm text-muted-foreground">Incongruências e acertos deste frigorífico{place ? ` · ${place}` : ""}</p></div><Tabs defaultValue="divergencias" className="space-y-4"><TabsList><TabsTrigger value="divergencias">Divergências ({divergentPayments.length})</TabsTrigger><TabsTrigger value="em-breve">Em Breve</TabsTrigger></TabsList><TabsContent value="divergencias"><Card className="min-h-56 p-6">{divergentPayments.length === 0 ? <p className="py-12 text-center text-sm text-muted-foreground">Nenhum pagamento com divergência.</p> : <div className="space-y-3">{divergentPayments.map((payment) => <div key={payment.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4"><div><p className="font-semibold">Pagamento de {formatDateBR(payment.date)}</p><p className="text-sm text-muted-foreground">Esperado: {formatBRL(payment.calculatedReceivedValue ?? payment.expectedValue ?? 0)} · Recebido: {formatBRL(payment.receivedValue ?? 0)}</p></div><Badge variant="destructive">Diferença: {formatBRL(payment.receivedDifference ?? 0)}</Badge></div>)}</div>}</Card></TabsContent><TabsContent value="em-breve"><ConstructionNotice title="Em Breve" /></TabsContent></Tabs><p className="text-xs text-muted-foreground">Identificador: {slaughterhouseId.slice(0, 8)}</p></div>;
 }
 
 
@@ -543,7 +536,7 @@ function ReceiptsTab() {
                         {(p.tripIds ?? []).length} viagem(ns)
                       </Badge>
                       {(p.fuelingIds ?? p.fuelingItemIds ?? []).length > 0 && (
-                        <Badge variant="outline">{p.fuelingIds.length} combustível(is)</Badge>
+                        <Badge variant="outline">{(p.fuelingIds ?? p.fuelingItemIds ?? []).length} combustível(is)</Badge>
                       )}
                       {(p.expenseIds ?? []).length > 0 && (
                         <Badge variant="outline">{p.expenseIds.length} manutenção(ões)</Badge>
