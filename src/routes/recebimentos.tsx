@@ -96,7 +96,7 @@ const EXTRA_NAV_ITEMS: ReceiptNavItem[] = [
 
 function ReceiptsPage() {
   const [slaughterhouses] = useSlaughterhouses();
-  const [payments] = usePayments();
+  const [payments, setPayments] = usePayments();
   const [section, setSection] = useState<string>("historico");
   const paymentDifference = (payment: Payment) => Number(payment.receivedValue ?? 0) - Number(payment.expectedValue ?? 0);
   const isDivergentPayment = (payment: Payment) => Math.abs(paymentDifference(payment)) > 0.01;
