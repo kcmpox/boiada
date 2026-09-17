@@ -38,6 +38,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { AlternativeLayoutDialog } from "@/components/AlternativeLayoutDialog";
+import { IntegrityCheckButton } from "@/components/IntegrityCheckButton";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -466,6 +467,7 @@ function ReceiptsTab() {
             {open && <ReceiptDialog payment={editingPayment} onSaved={() => { setOpen(false); setEditingPayment(null); }} />}
           </Dialog>
           <ImportReceiptButton />
+          <IntegrityCheckButton />
         </div>
       </div>
 
