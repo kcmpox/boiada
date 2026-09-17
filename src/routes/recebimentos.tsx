@@ -101,8 +101,8 @@ function ReceiptsPage() {
   const [section, setSection] = useState<string>("historico");
   const paymentDifference = (payment: Payment) => Number(payment.receivedValue ?? 0) - Number(payment.expectedValue ?? 0);
   const isDivergentPayment = (payment: Payment) => Math.abs(paymentDifference(payment)) > 0.01;
-  const divergentPaymentIds = useMemo(() => new Set((Array.isArray(payments) ? payments : []).filter((payment): payment is Payment => Boolean(payment && typeof payment === "object")).filter(isDivergentPayment).map((payment) => payment.id)), [payments]);
-  const hasDivergenceFor = (slaughterhouseId: string) => (Array.isArray(payments) ? payments : []).some((payment) => payment && String(payment.destination).toLowerCase() === String(slaughterhouseId).toLowerCase() && divergentPaymentIds.has(payment.id));
+  const divergentPaymentIds = useMemo(() => new Set(payments.filter(isDivergentPayment).map((payment) => payment.id)), [payments]);
+  const hasDivergenceFor = (slaughterhouseId: string) => payments.some((payment) => String(payment.destination).toLowerCase() === String(slaughterhouseId).toLowerCase() && divergentPaymentIds.has(payment.id));
 
   const slaughterhouseItems = useMemo<ReceiptNavItem[]>(
     () =>
@@ -230,20 +230,7 @@ function ReceiptsTab() {
   const [jsonEditOpen, setJsonEditOpen] = useState(false);
 
   const sorted = useMemo(
-    () => (Array.isArray(payments) ? payments : []).filter((payment): payment is Payment => Boolean(payment && typeof payment === "object")).map((payment) => ({
-      ...payment,
-      id: String(payment.id ?? uid()),
-      date: String(payment.date ?? ""),
-      tripIds: Array.isArray(payment.tripIds) ? payment.tripIds : [],
-      fuelingIds: Array.isArray(payment.fuelingIds) ? payment.fuelingIds : [],
-      fuelingItemIds: Array.isArray(payment.fuelingItemIds) ? payment.fuelingItemIds : [],
-      expenseIds: Array.isArray(payment.expenseIds) ? payment.expenseIds : [],
-      tollIds: Array.isArray(payment.tollIds) ? payment.tollIds : [],
-      receivedValue: Number(payment.receivedValue ?? 0),
-      expectedValue: Number(payment.expectedValue ?? 0),
-      grossValue: Number(payment.grossValue ?? 0),
-      rentValue: Number(payment.rentValue ?? 0),
-    })).sort((a, b) => b.date.localeCompare(a.date)),
+    () => [...payments].sort((a, b) => b.date.localeCompare(a.date)),
     [payments],
   );
 
