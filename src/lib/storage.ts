@@ -483,6 +483,13 @@ export function migrateLegacyData() {
 
   const legacyTiers = read<OldPriceTier[]>(KEYS.legacyTiers, []);
   const existingTables = read<PriceTable[]>(KEYS.priceTables, []);
+  const existingTrips = read<Trip[]>(KEYS.trips, []);
+
+  // Sem dados legados ou existentes, não há nada para migrar:
+  // não cria tabelas ATUAL nem grava a flag de migração.
+  if (legacyTiers.length === 0 && existingTables.length === 0 && existingTrips.length === 0) {
+    return;
+  }
 
   const now = new Date().toISOString();
   let tables = read<PriceTable[]>(KEYS.priceTables, []);
