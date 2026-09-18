@@ -139,7 +139,7 @@ function ReceiptsPage() {
         </div>
       </div>
   <Tabs defaultValue="recebimentos" className="space-y-6">
-  <TabsList className="h-10"><TabsTrigger value="recebimentos" className="px-4"><BanknoteIcon className="mr-1.5 h-4 w-4" /> Recebimentos</TabsTrigger><TabsTrigger value="ajustes" className="px-4"><ScaleIcon className="mr-1.5 h-4 w-4" /> Ajustes</TabsTrigger><TabsTrigger value="comissoes" className="px-4"><UsersIcon className="mr-1.5 h-4 w-4" /> Comissões</TabsTrigger></TabsList>
+  <TabsList className="h-10"><TabsTrigger value="recebimentos" className="px-4"><BanknoteIcon className="mr-1.5 h-4 w-4" /> Recebimentos</TabsTrigger><TabsTrigger value="ajustes" className="px-4"><ScaleIcon className="mr-1.5 h-4 w-4" /> Atrasadas</TabsTrigger><TabsTrigger value="comissoes" className="px-4"><UsersIcon className="mr-1.5 h-4 w-4" /> Comissões</TabsTrigger></TabsList>
   <TabsContent value="recebimentos">
   <div className="grid gap-6 md:grid-cols-[260px_1fr]">
   <nav className="md:sticky md:top-6 md:self-start">
