@@ -1119,7 +1119,7 @@ function BackupSection() {
             id: p.id,
             data: p.date.slice(0, 10),
             viagens: p.tripIds.length,
-            combustiveis: p.fuelingIds.length,
+            combustiveis: (p.fuelingIds ?? []).length,
             manutencoes: p.expenseIds.length,
             pedagios: p.tollIds.length,
             bruto: p.grossValue,
@@ -1438,7 +1438,7 @@ function BackupSection() {
         if (
           p.tripIds.some((id) => tripIds.has(id)) ||
           p.tollIds.some((id) => tollIds.has(id)) ||
-          p.fuelingIds.some((id) => fuelIds.has(id)) ||
+          (p.fuelingIds ?? []).some((id) => fuelIds.has(id)) ||
           p.expenseIds.some((id) => expIds.has(id))
         )
           payIds.add(p.id);
