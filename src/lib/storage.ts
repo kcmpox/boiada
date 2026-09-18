@@ -234,7 +234,13 @@ export interface Payment {
   receivedByItem?: Record<string, number>;
   reimbursementIds?: string[];
   notes?: string;
-  adjustments?: Array<{ deemed_accepted?: { value: number; dateTime: string } }>;
+  adjustments?: {
+    additional_payments?: Array<{ date: string; value: number; payment_type: "general" | "itemized"; allocatedItems: Record<string, number>; notes: string }>;
+    billing_contact?: Array<{ date: string; telephone: string; name: string; subject: string; description: string }>;
+    deemed_accepted?: { value: number; reason: string; dateTime: string };
+    refunds?: Array<{ date: string; value: number; reason: string }>;
+    write_off?: { dateTime: string; value: number; reason: string; loss_accepted: boolean };
+  };
 }
 
 export interface OtherDeductionReimbursement {
