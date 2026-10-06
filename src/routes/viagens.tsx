@@ -721,7 +721,7 @@ function TripsListSection() {
                       <p className="text-xs uppercase tracking-wide text-muted-foreground">
                         Valor final
                       </p>
-                      {t.cattleType === "magro" ? <button type="button" className="text-2xl font-bold text-amber-700 underline decoration-dotted underline-offset-4 dark:text-amber-300" title="Informar valor final considerado pelo frigorífico" onClick={() => { setFinalValueTrip(t); setFinalValueInput(String(t.finalValue)); }}>{formatBRL(t.finalValue)}</button> : <p className="text-2xl font-bold text-primary">{formatBRL(t.finalValue)}</p>}
+                      {t.cattleType === "magro" ? <button type="button" className={`text-2xl font-bold underline decoration-dotted underline-offset-4 ${t.finalValue < t.tableValue ? "text-destructive" : "text-primary"}`} title="Informar valor final considerado pelo frigorífico" onClick={() => { setFinalValueTrip(t); setFinalValueInput(String(t.finalValue)); }}>{formatBRL(t.finalValue)}</button> : <p className="text-2xl font-bold text-primary">{formatBRL(t.finalValue)}</p>}
                     </div>
                     <Button
                       variant="ghost"
