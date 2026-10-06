@@ -972,12 +972,7 @@ function TripDialog({ trip, onSaved }: { trip: Trip | null; onSaved: () => void 
     : Math.max(0, Number(manualDistance) || 0);
 
   const selectedTable = destTables.find((t) => t.id === priceTableId);
-  const tableValue = calculateTripValue(
-    selectedTable,
-    cattleType,
-    km,
-    cattleType === "magro" ? Number(manualValue) || 0 : undefined,
-  );
+  const tableValue = calculateTripValue(selectedTable, "gordo", km);
   const lossTotal = Number(lostAnimals) * Number(lostAnimalValue);
   const finalValue = Math.max(0, tableValue - lossTotal);
 
@@ -1000,9 +995,7 @@ function TripDialog({ trip, onSaved }: { trip: Trip | null; onSaved: () => void 
       return null;
     }
     if (s === 3) {
-      if (cattleType === "magro" && (!manualValue || Number(manualValue) <= 0))
-        return "Informe o valor manual para gado magro.";
-      if (cattleType === "gordo" && !priceTableId) return "Selecione a tabela de referência.";
+      if (!priceTableId) return "Selecione a tabela de referência.";
       return null;
     }
     return null;
@@ -1038,7 +1031,7 @@ function TripDialog({ trip, onSaved }: { trip: Trip | null; onSaved: () => void 
       setStep(3);
       return;
     }
-    if (cattleType === "gordo" && tableValue === 0) {
+    if (tableValue === 0) {
       toast.warning("Nenhuma faixa de preço cobre essa distância. Verifique a tabela.");
     }
 
@@ -1060,7 +1053,7 @@ function TripDialog({ trip, onSaved }: { trip: Trip | null; onSaved: () => void 
       lostAnimalValue: Number(lostAnimalValue),
       priceTableId: selectedTable?.id,
       priceTableName: selectedTable?.name,
-      manualValue: cattleType === "magro" ? Number(manualValue) || 0 : undefined,
+      manualValue: undefined,
       tableValue,
       finalValue,
       attachments,
@@ -1139,9 +1132,7 @@ function TripDialog({ trip, onSaved }: { trip: Trip | null; onSaved: () => void 
                 </SelectContent>
               </Select>
               <p className="mt-1 text-xs text-muted-foreground">
-                {cattleType === "gordo"
-                  ? "Gado gordo: o valor é calculado pela tabela de preços conforme a distância."
-                  : "Gado magro: o valor é inserido manualmente na última etapa."}
+                O valor de ambos os tipos de gado é calculado pela tabela de preços conforme a distância.
               </p>
             </div>
             <div>
@@ -1320,7 +1311,7 @@ function TripDialog({ trip, onSaved }: { trip: Trip | null; onSaved: () => void 
         {step === 3 && (
           <div className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
-              {cattleType === "gordo" && (
+              {(
                 <div className="sm:col-span-2">
                   <Label>
                     Tabela de referência <span className="text-destructive">*</span>
@@ -1352,21 +1343,7 @@ function TripDialog({ trip, onSaved }: { trip: Trip | null; onSaved: () => void 
                   )}
                 </div>
               )}
-              {cattleType === "magro" && (
-                <div className="sm:col-span-2">
-                  <Label>
-                    Valor da viagem (R$) <span className="text-destructive">*</span>
-                  </Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={manualValue}
-                    onChange={(e) => setManualValue(e.target.value)}
-                    placeholder="Digite o valor manual"
-                  />
-                </div>
-              )}
+
               <div>
                 <Label>Animais perdidos</Label>
                 <Input
@@ -1529,12 +1506,7 @@ function EditTripDialog({ trip, onSaved }: { trip: Trip; onSaved: () => void }) 
 
   const selectedTable = destTables.find((t) => t.id === priceTableId);
   const km = getDistance(trip);
-  const tableValue = calculateTripValue(
-    selectedTable,
-    trip.cattleType,
-    km,
-    trip.cattleType === "magro" ? Number(manualValue) || 0 : undefined,
-  );
+  const tableValue = calculateTripValue(selectedTable, "gordo", km);
   const lossTotal = Number(lostAnimals) * Number(lostAnimalValue);
   const finalValue = Math.max(0, tableValue - lossTotal);
 
@@ -1544,14 +1516,11 @@ function EditTripDialog({ trip, onSaved }: { trip: Trip; onSaved: () => void }) 
       toast.error("Selecione o caminhão.");
       return;
     }
-    if (trip.cattleType === "gordo" && !priceTableId) {
+    if (!priceTableId) {
       toast.error("Selecione a tabela de referência.");
       return;
     }
-    if (trip.cattleType === "magro" && (!manualValue || Number(manualValue) <= 0)) {
-      toast.error("Informe o valor da viagem.");
-      return;
-    }
+
 
     const updated: Trip = {
       ...trip,
@@ -1564,7 +1533,7 @@ function EditTripDialog({ trip, onSaved }: { trip: Trip; onSaved: () => void }) 
       priceTableName: selectedTable?.name,
       lostAnimals: Number(lostAnimals),
       lostAnimalValue: Number(lostAnimalValue),
-      manualValue: trip.cattleType === "magro" ? Number(manualValue) || 0 : undefined,
+      manualValue: undefined,
       tableValue,
       finalValue,
       attachments,
@@ -1637,7 +1606,7 @@ function EditTripDialog({ trip, onSaved }: { trip: Trip; onSaved: () => void }) 
               placeholder="Número da minuta"
             />
           </div>
-          {trip.cattleType === "gordo" && (
+          {(
             <div className="sm:col-span-2">
               <Label>
                 Tabela de referência <span className="text-destructive">*</span>
@@ -1660,21 +1629,6 @@ function EditTripDialog({ trip, onSaved }: { trip: Trip; onSaved: () => void }) 
                   Configurações.
                 </p>
               )}
-            </div>
-          )}
-          {trip.cattleType === "magro" && (
-            <div className="sm:col-span-2">
-              <Label>
-                Valor da viagem (R$) <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                type="number"
-                step="0.01"
-                min="0"
-                value={manualValue}
-                onChange={(e) => setManualValue(e.target.value)}
-                placeholder="Digite o valor manual"
-              />
             </div>
           )}
           <div>
