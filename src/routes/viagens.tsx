@@ -721,7 +721,7 @@ function TripsListSection() {
                       <p className="text-xs uppercase tracking-wide text-muted-foreground">
                         Valor final
                       </p>
-                      {t.cattleType === "magro" ? <button type="button" className={`text-2xl font-bold underline decoration-dotted underline-offset-4 ${t.finalValue < t.tableValue ? "text-destructive" : "text-primary"}`} title="Informar valor final considerado pelo frigorífico" onClick={() => { setFinalValueTrip(t); setFinalValueInput(String(t.finalValue)); }}>{formatBRL(t.finalValue)}</button> : <p className="text-2xl font-bold text-primary">{formatBRL(t.finalValue)}</p>}
+                      {t.cattleType === "magro" ? <button type="button" className={`text-2xl font-bold underline decoration-dotted underline-offset-4 ${t.finalValue < (t.tableValue - t.lostAnimalValue * t.lostAnimals) ? "text-destructive" : "text-primary"}`} title="Informar valor final considerado pelo frigorífico" onClick={() => { setFinalValueTrip(t); setFinalValueInput(String(t.finalValue)); }}>{formatBRL(t.finalValue)}</button> : <p className="text-2xl font-bold text-primary">{formatBRL(t.finalValue)}</p>}
                     </div>
                     <Button
                       variant="ghost"
@@ -1554,8 +1554,9 @@ function EditTripDialog({ trip, onSaved }: { trip: Trip; onSaved: () => void }) 
     }
 
 
-    const updated: Trip = {
-      ...trip,
+  const shouldUpdateFinalValue = trip.cattleType !== "magro" || !Number.isFinite(trip.finalValue) || window.confirm("Deseja atualizar o valor final considerado pelo frigorífico com o valor calculado a partir da viagem?");
+  const updated: Trip = {
+  ...trip,
       truckId,
       driverId: driverId || undefined,
       cte: cte.trim() || undefined,
@@ -1567,7 +1568,7 @@ function EditTripDialog({ trip, onSaved }: { trip: Trip; onSaved: () => void }) 
       lostAnimalValue: Number(lostAnimalValue),
       manualValue: undefined,
       tableValue,
-      finalValue: trip.cattleType === "magro" ? trip.finalValue : finalValue,
+      finalValue: shouldUpdateFinalValue ? finalValue : trip.finalValue,
       attachments,
       withoutFueling: trip.withoutFueling,
     };
