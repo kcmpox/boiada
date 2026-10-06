@@ -1567,7 +1567,7 @@ function EditTripDialog({ trip, onSaved }: { trip: Trip; onSaved: () => void }) 
       lostAnimalValue: Number(lostAnimalValue),
       manualValue: undefined,
       tableValue,
-      finalValue,
+      finalValue: trip.cattleType === "magro" ? trip.finalValue : finalValue,
       attachments,
       withoutFueling: trip.withoutFueling,
     };
