@@ -254,6 +254,8 @@ function TripsListSection() {
   const [statusFilter, setStatusFilter] = useState<"__all__" | "aberto" | "pago" | "sem_abastecimento">("__all__");
   const [destFilter, setDestFilter] = useState<"__all__" | Destination>("__all__");
   const [page, setPage] = useState(1);
+  const [finalValueTrip, setFinalValueTrip] = useState<Trip | null>(null);
+  const [finalValueInput, setFinalValueInput] = useState("");
 
   const hasCurrentTable = tables.some((t) => t.name === "ATUAL");
 
@@ -279,6 +281,18 @@ function TripsListSection() {
     [filtered],
   );
   const totalValue = useMemo(() => sorted.reduce((s, t) => s + t.finalValue, 0), [sorted]);
+  const saveFinalValue = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!finalValueTrip) return;
+    const value = Number(finalValueInput);
+    if (!Number.isFinite(value) || value < 0) {
+      toast.error("Informe um valor final válido.");
+      return;
+    }
+    setTrips((current) => current.map((trip) => trip.id === finalValueTrip.id ? { ...trip, finalValue: value } : trip));
+    setFinalValueTrip(null);
+    toast.success("Valor final atualizado");
+  };
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const paged = useMemo(
@@ -647,7 +661,7 @@ function TripsListSection() {
             const km = getDistance(t);
             const locked = lockedTripIds.has(t.id);
             return (
-              <Card key={t.id} className="p-5 shadow-soft">
+              <Card key={t.id} className={`p-5 shadow-soft ${t.cattleType === "magro" ? "border-amber-300 bg-amber-50/70 dark:border-amber-700 dark:bg-amber-950/20" : ""}`}>
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="space-y-2">
                     <div className="flex flex-wrap items-center gap-2">
@@ -707,7 +721,7 @@ function TripsListSection() {
                       <p className="text-xs uppercase tracking-wide text-muted-foreground">
                         Valor final
                       </p>
-                      <p className="text-2xl font-bold text-primary">{formatBRL(t.finalValue)}</p>
+                      {t.cattleType === "magro" ? <button type="button" className="text-2xl font-bold text-amber-700 underline decoration-dotted underline-offset-4 dark:text-amber-300" title="Informar valor final considerado pelo frigorífico" onClick={() => { setFinalValueTrip(t); setFinalValueInput(String(t.finalValue)); }}>{formatBRL(t.finalValue)}</button> : <p className="text-2xl font-bold text-primary">{formatBRL(t.finalValue)}</p>}
                     </div>
                     <Button
                       variant="ghost"
@@ -760,6 +774,24 @@ function TripsListSection() {
           <Pagination page={safePage} totalPages={totalPages} onChange={setPage} />
         </div>
       )}
+
+      <Dialog open={Boolean(finalValueTrip)} onOpenChange={(isOpen) => !isOpen && setFinalValueTrip(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Valor final do frigorífico</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={saveFinalValue} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="slaughterhouse-final-value">Valor final considerado</Label>
+              <Input id="slaughterhouse-final-value" type="number" min="0" step="0.01" value={finalValueInput} onChange={(event) => setFinalValueInput(event.target.value)} required />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setFinalValueTrip(null)}>Cancelar</Button>
+              <Button type="submit">Salvar valor</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <JsonEditorDialog
         open={jsonEditOpen}
