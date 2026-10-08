@@ -97,7 +97,8 @@ export function AlternativeLayoutDialog({ open, title, onBack, payment }: { open
     if ((trip.kmStart ?? 0) > 0 || (trip.kmEnd ?? 0) > 0) return Math.max(0, (trip.kmEnd ?? 0) - (trip.kmStart ?? 0))
     return trip.manualDistance ?? 0
   }
-  const rentPercent = Math.min(1, Math.max(0, Number(rentPercentInput) || 0.1))
+  const parsedRentPercent = Number(rentPercentInput)
+  const rentPercent = Number.isFinite(parsedRentPercent) ? Math.min(1, Math.max(0, parsedRentPercent)) : 0.1
   const computedReceivedTotal = selectedTrips.reduce((sum, trip) => sum + informedValue(trip.id, (trip.tableValue ?? trip.finalValue ?? 0) * (1 - rentPercent)), 0) + signedValue(selectedFuelingItems.map((item) => ({ ...item, amount: informedValue(item.id, item.amount) }))) + signedValue(selectedExpenses.map((item) => ({ ...item, amount: informedValue(item.id, item.amount) }))) + signedValue(tripTolls.filter((item) => selectedIds.includes(item.id)).map((item) => ({ ...item, amount: informedValue(item.id, item.amount) }))) - selectedDeductions.reduce((sum, item) => sum + informedValue(item.id, item.amount || 0), 0) + selectedReimbursements.reduce((sum, item) => sum + informedValue(item.id, item.amount || 0), 0)
   const deductionsValue = selectedDeductions.reduce((total, item) => total + (item.amount || 0), 0)
   const reimbursementsValue = selectedReimbursements.reduce((total, item) => total + (item.amount || 0), 0)
