@@ -765,14 +765,17 @@ function ReceiptDialog({ onSaved, payment }: { onSaved: () => void; payment?: Pa
 
   const [receivedValue, setReceivedValue] = useState("");
   const [notes, setNotes] = useState("");
+  const [rentPercentInput, setRentPercentInput] = useState(String(RENT_PERCENT));
 
   const selTrips = trips.filter((t) => tripIds.includes(t.id));
   const selFuel = fuelings.filter((f) => fuelIds.includes(f.id));
   const selExp = expenses.filter((e) => expIds.includes(e.id));
   const selTolls = tolls.filter((t) => tollIds.includes(t.id));
 
+  const parsedRentPercent = Number(rentPercentInput);
+  const rentPercent = Number.isFinite(parsedRentPercent) ? Math.min(1, Math.max(0, parsedRentPercent)) : RENT_PERCENT;
   const grossValue = selTrips.reduce((s, t) => s + t.finalValue, 0);
-  const rentValue = grossValue * RENT_PERCENT;
+  const rentValue = grossValue * rentPercent;
   const fuelDesc = selFuel
     .filter((f) => fuelResponsibility(f) === "desconto")
     .reduce((s, f) => s + totalFuel(f), 0);
@@ -797,7 +800,7 @@ function ReceiptDialog({ onSaved, payment }: { onSaved: () => void; payment?: Pa
 
   // Sum of per-trip received values
   const perTripTotal = useMemo(
-    () => selTrips.reduce((s, t) => s + (tripReceivedValues[t.id] === undefined || tripReceivedValues[t.id] === "" ? t.finalValue : Number(tripReceivedValues[t.id]) || 0), 0),
+    () => selTrips.reduce((s, t) => s + (tripReceivedValues[t.id] === undefined || tripReceivedValues[t.id] === "" ? t.finalValue * (1 - rentPercent) : Number(tripReceivedValues[t.id]) || 0), 0),
     [selTrips, tripReceivedValues],
   );
 
@@ -831,12 +834,12 @@ function ReceiptDialog({ onSaved, payment }: { onSaved: () => void; payment?: Pa
   const buildReceiptRecord = (received: number): Payment => {
     const calculatedReceivedValue = perTripTotal - fuelDesc + fuelRess - expDesc + expRess - tollDesc + tollRess;
     const receivedByItem: Record<string, number> = {};
-    selTrips.forEach((trip) => { receivedByItem[trip.id] = tripReceivedValues[trip.id] === undefined || tripReceivedValues[trip.id] === "" ? trip.finalValue : Number(tripReceivedValues[trip.id]) || 0; });
+    selTrips.forEach((trip) => { receivedByItem[trip.id] = tripReceivedValues[trip.id] === undefined || tripReceivedValues[trip.id] === "" ? trip.finalValue * (1 - rentPercent) : Number(tripReceivedValues[trip.id]) || 0; });
     selTolls.forEach((toll) => { receivedByItem[toll.id] = tollAmount(toll); });
     return {
       id: uid(), date, destination: destFilter as Destination, tripIds, deductionIds: [], expenseIds: expIds, fuelingItemIds, reimbursementIds: [], tollIds,
       deductionsValue: 0, expenseValue: expRess - expDesc, fuelingsValue: fuelRess - fuelDesc, reimbursementsValue: 0, tollValue: tollRess - tollDesc,
-      rentPercent: RENT_PERCENT, grossValue, rentValue, reimbursedValue: fuelRess + expRess + tollRess, deductedValue: fuelDesc + expDesc + tollDesc,
+      rentPercent, grossValue, rentValue, reimbursedValue: fuelRess + expRess + tollRess, deductedValue: fuelDesc + expDesc + tollDesc,
       expectedValue, calculatedReceivedValue, receivedValue: received, receivedDifference: received - calculatedReceivedValue, receivedByItem, notes: notes.trim() || undefined,
     };
   };
@@ -867,7 +870,7 @@ function ReceiptDialog({ onSaved, payment }: { onSaved: () => void; payment?: Pa
       if (v !== undefined && v !== "") {
         tripRecv[t.id] = Number(v) || 0;
       } else {
-        tripRecv[t.id] = t.finalValue;
+        tripRecv[t.id] = t.finalValue * (1 - rentPercent);
       }
     }
     const p = buildReceiptRecord(rv);
@@ -895,7 +898,7 @@ function ReceiptDialog({ onSaved, payment }: { onSaved: () => void; payment?: Pa
       if (v !== undefined && v !== "") {
         tripRecv[t.id] = Number(v) || 0;
       } else {
-        tripRecv[t.id] = t.finalValue;
+        tripRecv[t.id] = t.finalValue * (1 - rentPercent);
       }
     }
     const registry = buildReceiptRecord(rv);
@@ -1007,6 +1010,11 @@ value={date}
             </div>
           </div>
           <div className="mt-2">
+            <Label htmlFor="receipt-rent-percent" className="text-xs">Aluguel da carreta</Label>
+            <Input id="receipt-rent-percent" type="number" min="0" max="1" step="0.01" value={rentPercentInput} onChange={(event) => { setRentPercentInput(event.target.value); setTripReceivedValues({}); }} className="mt-1" />
+            <p className="mt-1 text-xs text-muted-foreground">0.1 = 10%</p>
+          </div>
+          <div className="mt-2">
             <Label className="text-xs">Destino</Label>
             <Select value={destFilter} onValueChange={setDestFilter}>
               <SelectTrigger className="mt-1">
@@ -1044,7 +1052,7 @@ value={date}
         >
           {openTrips.map((t) => {
             const isEditingMinuta = editingMinuta === t.id;
-            const tripNet = t.finalValue - t.finalValue * RENT_PERCENT;
+            const tripNet = t.finalValue * (1 - rentPercent);
             return (
               <li key={t.id} className="flex items-center gap-3 px-3 py-2 text-sm">
                 <Checkbox checked={tripIds.includes(t.id)} onCheckedChange={() => toggleTrip(t.id)} />
@@ -1269,7 +1277,7 @@ value={date}
           <div className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-5">
             <Summary label="Bruto" value={formatBRL(grossValue)} />
             <Summary
-              label={`Aluguel ${(RENT_PERCENT * 100).toFixed(0)}%`}
+              label={`Aluguel ${(rentPercent * 100).toFixed(0)}%`}
               value={`- ${formatBRL(rentValue)}`}
             />
             <Summary label="Ressarcir" value={`+ ${formatBRL(reimbursedValue)}`} />
