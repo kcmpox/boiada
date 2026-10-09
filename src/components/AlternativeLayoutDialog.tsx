@@ -311,7 +311,7 @@ export function AlternativeLayoutDialog({
         selectedIds.includes(item.id),
     );
     const grossValue = selectedTrips.reduce(
-        (total, trip) => total + (trip.tableValue ?? trip.finalValue ?? 0),
+        (total, trip) => total + (trip.finalValueOverride??trip.tableValue ?? trip.finalValue ?? 0),
         0,
     );
     const signedValue = (
