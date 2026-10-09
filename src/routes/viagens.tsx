@@ -289,7 +289,7 @@ function TripsListSection() {
       toast.error("Informe um valor final válido.");
       return;
     }
-    setTrips((current) => current.map((trip) => trip.id === finalValueTrip.id ? { ...trip, finalValue: value } : trip));
+    setTrips((current) => current.map((trip) => trip.id === finalValueTrip.id ? { ...trip, finalValue: value, finalValueOverride: value } : trip));
     setFinalValueTrip(null);
     toast.success("Valor final atualizado");
   };

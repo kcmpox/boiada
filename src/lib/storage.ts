@@ -98,6 +98,8 @@ export interface Trip {
   manualValue?: number;
   tableValue: number;
   finalValue: number;
+  /** Valor final informado pelo frigorífico, quando diferente do cálculo. */
+  finalValueOverride?: number;
   attachments?: Attachment[];
   /** ISO timestamp when driver departed for the trip. */
   departureTime?: string;

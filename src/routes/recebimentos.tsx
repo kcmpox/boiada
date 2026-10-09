@@ -800,7 +800,7 @@ function ReceiptDialog({ onSaved, payment }: { onSaved: () => void; payment?: Pa
 
   // Sum of per-trip received values
   const perTripTotal = useMemo(
-    () => selTrips.reduce((s, t) => s + (tripReceivedValues[t.id] === undefined || tripReceivedValues[t.id] === "" ? t.finalValue * (1 - rentPercent) : Number(tripReceivedValues[t.id]) || 0), 0),
+    () => selTrips.reduce((s, t) => s + (tripReceivedValues[t.id] === undefined || tripReceivedValues[t.id] === "" ? (t.finalValueOverride ?? t.finalValue) * (1 - rentPercent) : Number(tripReceivedValues[t.id]) || 0), 0),
     [selTrips, tripReceivedValues],
   );
 
@@ -834,7 +834,7 @@ function ReceiptDialog({ onSaved, payment }: { onSaved: () => void; payment?: Pa
   const buildReceiptRecord = (received: number): Payment => {
     const calculatedReceivedValue = perTripTotal - fuelDesc + fuelRess - expDesc + expRess - tollDesc + tollRess;
     const receivedByItem: Record<string, number> = {};
-    selTrips.forEach((trip) => { receivedByItem[trip.id] = tripReceivedValues[trip.id] === undefined || tripReceivedValues[trip.id] === "" ? trip.finalValue * (1 - rentPercent) : Number(tripReceivedValues[trip.id]) || 0; });
+    selTrips.forEach((trip) => { receivedByItem[trip.id] = tripReceivedValues[trip.id] === undefined || tripReceivedValues[trip.id] === "" ? (trip.finalValueOverride ?? trip.finalValue) * (1 - rentPercent) : Number(tripReceivedValues[trip.id]) || 0; });
     selTolls.forEach((toll) => { receivedByItem[toll.id] = tollAmount(toll); });
     return {
       id: uid(), date, destination: destFilter as Destination, tripIds, deductionIds: [], expenseIds: expIds, fuelingItemIds, reimbursementIds: [], tollIds,
@@ -870,7 +870,7 @@ function ReceiptDialog({ onSaved, payment }: { onSaved: () => void; payment?: Pa
       if (v !== undefined && v !== "") {
         tripRecv[t.id] = Number(v) || 0;
       } else {
-        tripRecv[t.id] = t.finalValue * (1 - rentPercent);
+        tripRecv[t.id] = (t.finalValueOverride ?? t.finalValue) * (1 - rentPercent);
       }
     }
     const p = buildReceiptRecord(rv);
@@ -898,7 +898,7 @@ function ReceiptDialog({ onSaved, payment }: { onSaved: () => void; payment?: Pa
       if (v !== undefined && v !== "") {
         tripRecv[t.id] = Number(v) || 0;
       } else {
-        tripRecv[t.id] = t.finalValue * (1 - rentPercent);
+        tripRecv[t.id] = (t.finalValueOverride ?? t.finalValue) * (1 - rentPercent);
       }
     }
     const registry = buildReceiptRecord(rv);
@@ -1052,7 +1052,8 @@ value={date}
         >
           {openTrips.map((t) => {
             const isEditingMinuta = editingMinuta === t.id;
-            const tripNet = t.finalValue * (1 - rentPercent);
+            const tripFinalValue = t.finalValueOverride ?? t.finalValue;
+            const tripNet = tripFinalValue * (1 - rentPercent);
             return (
               <li key={t.id} className="flex items-center gap-3 px-3 py-2 text-sm">
                 <Checkbox checked={tripIds.includes(t.id)} onCheckedChange={() => toggleTrip(t.id)} />
@@ -1128,7 +1129,7 @@ value={date}
                 <div className="flex items-center gap-2">
                   <div className="text-right">
                     <p className="text-xs text-muted-foreground">Valor viagem</p>
-                    <p className="font-semibold">{formatBRL(t.finalValue)}</p>
+                    <p className="font-semibold">{formatBRL(t.finalValueOverride ?? t.finalValue)}</p>
                   </div>
                   {tripIds.includes(t.id) && (
                     <div className="w-28">
