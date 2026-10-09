@@ -82,7 +82,7 @@ export function AlternativeLayoutDialog({
     );
     const [receivedValue, setReceivedValue] = useState("");
     const [notes, setNotes] = useState("");
-    const [rentPercentInput, setRentPercentInput] = useState("0.1");
+    const [rentPercentInput, setRentPercentInput] = useState("0");
     const [activeTab, setActiveTab] = useState("Viagens");
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [tripEdits, setTripEdits] = useState<
@@ -94,7 +94,7 @@ export function AlternativeLayoutDialog({
         date: new Date().toISOString().slice(0, 10),
         value: "",
         notes: "",
-        rentPercent: "0.1",
+        rentPercent: "0",
     });
     const [editingRecord, setEditingRecord] =
         useState<OtherDeductionReimbursement | null>(null);
@@ -129,7 +129,7 @@ export function AlternativeLayoutDialog({
             ),
         );
         setNotes(payment.notes ?? "");
-        setRentPercentInput(String(payment.rentPercent ?? 0.1));
+        setRentPercentInput(String(payment.rentPercent ?? 0));
     }, [payment]);
 
     const tripTolls = useMemo(
@@ -332,7 +332,7 @@ export function AlternativeLayoutDialog({
     const parsedRentPercent = Number(rentPercentInput);
     const rentPercent = Number.isFinite(parsedRentPercent)
         ? Math.min(1, Math.max(0, parsedRentPercent))
-        : 0.1;
+        : 0;
     const computedReceivedTotal =
         selectedTrips.reduce(
             (sum, trip) =>
@@ -583,7 +583,7 @@ export function AlternativeLayoutDialog({
                                 className="mt-1 w-44 font-semibold"
                             />
                             <p className="mt-1 text-xs text-muted-foreground">
-                                0.1 = 10%
+                                0.5 = 50%
                             </p>
                         </div>
                     </div>
