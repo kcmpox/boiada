@@ -502,7 +502,7 @@ export function AlternativeLayoutDialog({
             const receivedTotal = Number(savedPayment.receivedValue ?? 0) + additionalTotal;
             const expectedTotal = Number(savedPayment.expectedValue ?? 0);
             const balance = receivedTotal - expectedTotal;
-            if (expectedTotal < 0 || receivedTotal > expectedTotal) {
+            if (expectedTotal < 0 || receivedTotal > expectedTotal || receivedTotal < 0) {
                 storedWallet[walletKey] = {
                     truckId,
                     destination,
