@@ -65,6 +65,7 @@ export function AlternativeLayoutDialog({
     onBack: () => void;
     payment?: any;
 }) {
+    const [walletBalance, setWalletBalance] = useState<number>(0);
     const [trucks] = useTrucks();
     const [slaughterhouses] = useSlaughterhouses();
     const [trips] = useTrips();
@@ -131,6 +132,23 @@ export function AlternativeLayoutDialog({
         setNotes(payment.notes ?? "");
         setRentPercentInput(String(payment.rentPercent ?? 0));
     }, [payment]);
+    
+    useEffect(() => {
+        if (typeof window !== "undefined" && truckId && destination) {
+            const walletKey = `${truckId}::${destination}`;
+            const storedWallet = JSON.parse(
+                window.localStorage.getItem("gt_wallet") || "{}"
+            );
+            const walletEntry = storedWallet[walletKey];
+        
+            // Declara a variável balance corretamente aqui dentro:
+            const balanceValue = walletEntry ? Number(walletEntry.balance) || 0 : 0;
+        
+            setWalletBalance(balanceValue);
+        } else {
+            setWalletBalance(0);
+        }
+    }, [truckId, destination]);
 
     const tripTolls = useMemo(
         () =>
@@ -333,6 +351,7 @@ export function AlternativeLayoutDialog({
     const rentPercent = Number.isFinite(parsedRentPercent)
         ? Math.min(1, Math.max(0, parsedRentPercent))
         : 0;
+    const walletBalanceNum = Number(walletBalance) || 0;
     const computedReceivedTotal =
         selectedTrips.reduce(
             (sum, trip) =>
@@ -371,7 +390,8 @@ export function AlternativeLayoutDialog({
         selectedReimbursements.reduce(
             (sum, item) => sum + informedValue(item.id, item.amount || 0),
             0,
-        );
+        ) +
+        walletBalanceNum;
     const deductionsValue = selectedDeductions.reduce(
         (total, item) => total + (item.amount || 0),
         0,
@@ -387,7 +407,8 @@ export function AlternativeLayoutDialog({
         maintenanceValue +
         tollsValue +
         reimbursementsValue -
-        deductionsValue;
+        deductionsValue +
+        walletBalanceNum;
     const ready = Boolean(truckId && destination);
     const parsedReceived = Number(receivedValue.replace(",", "."));
     const finalReceivedValue =
@@ -490,19 +511,40 @@ export function AlternativeLayoutDialog({
             );
             return;
         }
-        const savedPayment = { ...paymentJson, destination: destination as any } as any;
+        const savedPayment = {
+            ...paymentJson,
+            destination: destination as any,
+        } as any;
         setPayments((current) => [
             savedPayment,
             ...current.filter((item) => item.id !== paymentJson.id),
         ]);
         if (typeof window !== "undefined") {
             const walletKey = `${truckId}::${destination}`;
-            const storedWallet = JSON.parse(window.localStorage.getItem("gt_wallet") || "{}");
-            const additionalTotal = (savedPayment.adjustments?.additional_payments ?? []).reduce((sum: number, item: { value?: number }) => sum + Number(item.value ?? 0), 0);
-            const receivedTotal = Number(savedPayment.receivedValue ?? 0) + additionalTotal;
+            const storedWallet = JSON.parse(
+                window.localStorage.getItem("gt_wallet") || "{}",
+            );
+            const additionalTotal = (
+                savedPayment.adjustments?.additional_payments ?? []
+            ).reduce(
+                (sum: number, item: { value?: number }) =>
+                    sum + Number(item.value ?? 0),
+                0,
+            );
+            const receivedTotal =
+                Number(savedPayment.receivedValue ?? 0) + additionalTotal;
             const expectedTotal = Number(savedPayment.expectedValue ?? 0);
             const balance = receivedTotal - expectedTotal;
-            if (expectedTotal < 0 || receivedTotal > expectedTotal || receivedTotal < 0) {
+            if (receivedTotal < 0) {
+                const balance = receivedTotal
+                storedWallet[walletKey] = {
+                    truckId,
+                    destination,
+                    balance,
+                    updatedAt: savedPayment.date,
+                };
+            }
+            else if (receivedTotal > expectedTotal) {
                 storedWallet[walletKey] = {
                     truckId,
                     destination,
@@ -512,7 +554,10 @@ export function AlternativeLayoutDialog({
             } else {
                 delete storedWallet[walletKey];
             }
-            window.localStorage.setItem("gt_wallet", JSON.stringify(storedWallet));
+            window.localStorage.setItem(
+                "gt_wallet",
+                JSON.stringify(storedWallet),
+            );
         }
         toast.success("Recebimento salvo");
         onBack();
@@ -908,7 +953,8 @@ export function AlternativeLayoutDialog({
                                                     trip.finalValueOverride ??
                                                     trip.finalValue ??
                                                     0;
-                                                const liquido = bruto * (1-rentPercent);
+                                                const liquido =
+                                                    bruto * (1 - rentPercent);
                                                 return (
                                                     <div
                                                         key={trip.id}
