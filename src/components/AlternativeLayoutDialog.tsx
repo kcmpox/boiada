@@ -490,10 +490,23 @@ export function AlternativeLayoutDialog({
             );
             return;
         }
+        const savedPayment = { ...paymentJson, destination: destination as any } as any;
         setPayments((current) => [
-            { ...paymentJson, destination: destination as any } as any,
+            savedPayment,
             ...current.filter((item) => item.id !== paymentJson.id),
         ]);
+        if (typeof window !== "undefined") {
+            const walletKey = `${truckId}::${destination}`;
+            const storedWallet = JSON.parse(window.localStorage.getItem("gt_wallet") || "{}");
+            const additionalTotal = (savedPayment.adjustments?.additional_payments ?? []).reduce((sum: number, item: { value?: number }) => sum + Number(item.value ?? 0), 0);
+            storedWallet[walletKey] = {
+                truckId,
+                destination,
+                balance: Number(savedPayment.receivedValue ?? 0) + additionalTotal - Number(savedPayment.expectedValue ?? 0),
+                updatedAt: savedPayment.date,
+            };
+            window.localStorage.setItem("gt_wallet", JSON.stringify(storedWallet));
+        }
         toast.success("Recebimento salvo");
         onBack();
     };
