@@ -891,7 +891,7 @@ function BackupSection() {
   const [importFormat, setImportFormat] = useState<"json" | "boiada">("json");
 
   const [importPayload, setImportPayload] = useState<Record<ImportKey, unknown[]> | null>(null);
-  const [importExtras, setImportExtras] = useState<{ slaughterhouses: unknown[]; toll_locations: unknown[]; deduction: unknown[]; reimbursement: unknown[]; theme: string | null }>({ slaughterhouses: [], toll_locations: [], deduction: [], reimbursement: [], theme: null });
+  const [importExtras, setImportExtras] = useState<{ slaughterhouses: unknown[]; toll_locations: unknown[]; deduction: unknown[]; reimbursement: unknown[]; gt_wallet: Record<string, unknown>; theme: string | null }>({ slaughterhouses: [], toll_locations: [], deduction: [], reimbursement: [], gt_wallet: {}, theme: null });
   const [importSel, setImportSel] = useState<Record<ImportKey, boolean>>({
     trucks: true,
     drivers: true,
@@ -974,6 +974,7 @@ function BackupSection() {
       reimbursement: JSON.parse(localStorage.getItem("gt_reimbursements") || "[]"),
       toll_locations: JSON.parse(localStorage.getItem("gt_toll_locations") || "[]"),
       gt_theme: localStorage.getItem("gt_theme"),
+      gt_wallet: JSON.parse(localStorage.getItem("gt_wallet") || "{}"),
     };
     if (format === "json") {
       const blob = new Blob([JSON.stringify(data, null, 2)], {
@@ -1206,8 +1207,9 @@ function BackupSection() {
         slaughterhouses: Array.isArray(parsed.slaughterhouses) ? parsed.slaughterhouses : [],
         toll_locations: Array.isArray(parsed.toll_locations) ? parsed.toll_locations : [],
         deduction: Array.isArray(parsed.deduction) ? parsed.deduction : [],
-        reimbursement: Array.isArray(parsed.reimbursement) ? parsed.reimbursement : [],
-        theme: typeof parsed.gt_theme === "string" ? parsed.gt_theme : typeof parsed.theme === "string" ? parsed.theme : null,
+    reimbursement: Array.isArray(parsed.reimbursement) ? parsed.reimbursement : [],
+    gt_wallet: parsed.gt_wallet && typeof parsed.gt_wallet === "object" ? parsed.gt_wallet as Record<string, unknown> : {},
+    theme: typeof parsed.gt_theme === "string" ? parsed.gt_theme : typeof parsed.theme === "string" ? parsed.theme : null,
       });
       const payload: Record<ImportKey, unknown[]> = {
         trucks: Array.isArray(parsed.trucks) ? (parsed.trucks as unknown[]) : [],
@@ -1327,6 +1329,7 @@ function BackupSection() {
       localStorage.setItem("gt_toll_locations", JSON.stringify(importExtras.toll_locations));
       localStorage.setItem("gt_deductions", JSON.stringify(importExtras.deduction));
       localStorage.setItem("gt_reimbursements", JSON.stringify(importExtras.reimbursement));
+      localStorage.setItem("gt_wallet", JSON.stringify(importExtras.gt_wallet));
       if (importExtras.theme !== null) localStorage.setItem("gt_theme", importExtras.theme);
       toast.success(`Importado: ${selectedKeys.map((k) => IMPORT_LABELS[k]).join(", ")}`);
       setImportPayload(null);
