@@ -499,12 +499,19 @@ export function AlternativeLayoutDialog({
             const walletKey = `${truckId}::${destination}`;
             const storedWallet = JSON.parse(window.localStorage.getItem("gt_wallet") || "{}");
             const additionalTotal = (savedPayment.adjustments?.additional_payments ?? []).reduce((sum: number, item: { value?: number }) => sum + Number(item.value ?? 0), 0);
-            storedWallet[walletKey] = {
-                truckId,
-                destination,
-                balance: Number(savedPayment.receivedValue ?? 0) + additionalTotal - Number(savedPayment.expectedValue ?? 0),
-                updatedAt: savedPayment.date,
-            };
+            const receivedTotal = Number(savedPayment.receivedValue ?? 0) + additionalTotal;
+            const expectedTotal = Number(savedPayment.expectedValue ?? 0);
+            const balance = receivedTotal - expectedTotal;
+            if (expectedTotal < 0 || receivedTotal > expectedTotal) {
+                storedWallet[walletKey] = {
+                    truckId,
+                    destination,
+                    balance,
+                    updatedAt: savedPayment.date,
+                };
+            } else {
+                delete storedWallet[walletKey];
+            }
             window.localStorage.setItem("gt_wallet", JSON.stringify(storedWallet));
         }
         toast.success("Recebimento salvo");
