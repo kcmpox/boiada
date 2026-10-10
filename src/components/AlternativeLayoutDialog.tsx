@@ -358,7 +358,7 @@ export function AlternativeLayoutDialog({
                 sum +
                 informedValue(
                     trip.id,
-                    (trip.tableValue ?? trip.finalValue ?? 0) *
+                    (trip.finalValueOverride ?? trip.tableValue ?? trip.finalValue ?? 0) *
                         (1 - rentPercent),
                 ),
             0,
