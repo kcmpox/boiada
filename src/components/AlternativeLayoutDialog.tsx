@@ -555,9 +555,11 @@ export function AlternativeLayoutDialog({
             const receivedTotal =
                 Number(savedPayment.receivedValue ?? 0) + additionalTotal;
             const expectedTotal = Number(savedPayment.expectedValue ?? 0);
-            const balance = receivedTotal - expectedTotal;
+            //const balance = receivedTotal - expectedTotal;
+            const balance = receivedTotal;
 
-            if (receivedTotal < 0 || receivedTotal > expectedTotal) {
+            //if (receivedTotal < 0 || receivedTotal > expectedTotal) {
+            if (receivedTotal < 0 || receivedTotal < 0) {
                 storedWallet[walletKey] = {
                     truckId,
                     destination,
