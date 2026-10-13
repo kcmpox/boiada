@@ -13,7 +13,7 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -37,14 +37,11 @@ import {
     useReimbursements,
     usePayments,
 } from "@/lib/storage";
-import type {
-    Fueling,
-    Expense,
-    OtherDeductionReimbursement,
-} from "@/lib/storage";
+import type { OtherDeductionReimbursement } from "@/lib/storage";
 
 const money = (value: number) =>
     value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
 const tabs = [
     "Viagens",
     "Abastecimentos",
@@ -53,6 +50,24 @@ const tabs = [
     "Descontos",
     "Reembolsos",
 ];
+
+// Valor bruto da viagem: finalValueOverride tem prioridade; depois finalValue.
+// Aceita número ou string (ex.: "1500,50").
+const tripGrossValue = (trip: any): number => {
+    const override = trip?.finalValueOverride;
+    if (
+        override !== undefined &&
+        override !== null &&
+        String(override).trim() !== ""
+    ) {
+        const parsed = Number(String(override).replace(",", "."));
+        if (Number.isFinite(parsed)) return parsed;
+    }
+    const fallback = Number(trip?.finalValue ?? 0);
+    return Number.isFinite(fallback) ? fallback : 0;
+};
+
+const today = () => new Date().toISOString().slice(0, 10);
 
 export function AlternativeLayoutDialog({
     open,
@@ -78,9 +93,7 @@ export function AlternativeLayoutDialog({
     const [truckId, setTruckId] = useState("");
     const [destination, setDestination] = useState("");
     const [dateFrom, setDateFrom] = useState("");
-    const [paymentDate, setPaymentDate] = useState(
-        new Date().toISOString().slice(0, 10),
-    );
+    const [paymentDate, setPaymentDate] = useState(today());
     const [receivedValue, setReceivedValue] = useState("");
     const [notes, setNotes] = useState("");
     const [rentPercentInput, setRentPercentInput] = useState("0");
@@ -92,21 +105,18 @@ export function AlternativeLayoutDialog({
     const [jsonOpen, setJsonOpen] = useState(false);
     const [additionalPaymentOpen, setAdditionalPaymentOpen] = useState(false);
     const [additionalPayment, setAdditionalPayment] = useState({
-        date: new Date().toISOString().slice(0, 10),
+        date: today(),
         value: "",
         notes: "",
         rentPercent: "0",
     });
-    const [editingRecord, setEditingRecord] =
-        useState<OtherDeductionReimbursement | null>(null);
-    const [recordFormOpen, setRecordFormOpen] = useState(false);
     const [receivedByItem, setReceivedByItem] = useState<
         Record<string, string>
     >({});
 
     useEffect(() => {
         if (!payment) return;
-        setPaymentDate(payment.date ?? new Date().toISOString().slice(0, 10));
+        setPaymentDate(payment.date ?? today());
         setTruckId(payment.truckId ?? "");
         setDestination(payment.destination ?? "");
         setSelectedIds([
@@ -132,19 +142,17 @@ export function AlternativeLayoutDialog({
         setNotes(payment.notes ?? "");
         setRentPercentInput(String(payment.rentPercent ?? 0));
     }, [payment]);
-    
+
     useEffect(() => {
         if (typeof window !== "undefined" && truckId && destination) {
             const walletKey = `${truckId}::${destination}`;
             const storedWallet = JSON.parse(
-                window.localStorage.getItem("gt_wallet") || "{}"
+                window.localStorage.getItem("gt_wallet") || "{}",
             );
             const walletEntry = storedWallet[walletKey];
-        
-            // Declara a variável balance corretamente aqui dentro:
-            const balanceValue = walletEntry ? Number(walletEntry.balance) || 0 : 0;
-        
-            setWalletBalance(balanceValue);
+            setWalletBalance(
+                walletEntry ? Number(walletEntry.balance) || 0 : 0,
+            );
         } else {
             setWalletBalance(0);
         }
@@ -165,6 +173,7 @@ export function AlternativeLayoutDialog({
                 })),
         [tolls],
     );
+
     const fuelingItems = useMemo(
         () =>
             (Array.isArray(fuelings) ? fuelings : []).flatMap((fueling) =>
@@ -189,6 +198,7 @@ export function AlternativeLayoutDialog({
             ),
         [fuelings],
     );
+
     const maintenanceItems = useMemo(
         () =>
             (Array.isArray(expenses) ? expenses : [])
@@ -205,7 +215,6 @@ export function AlternativeLayoutDialog({
                 })),
         [expenses],
     );
-    const receivedTotal = 0;
 
     const filteredTrips = useMemo(() => {
         if (!truckId || !destination) return [];
@@ -232,21 +241,31 @@ export function AlternativeLayoutDialog({
         payments,
         payment?.id,
     ]);
+
     const selectedTrips = filteredTrips.filter((trip) =>
         selectedIds.includes(trip.id),
     );
+
     const isOnOrBeforePayment = (value: unknown) =>
         !value || String(value).slice(0, 10) <= paymentDate;
+
+    const otherPayments = payments.filter((item) => item.id !== payment?.id);
     const receivedFuelingItemIds = new Set(
-        payments
-            .filter((item) => item.id !== payment?.id)
-            .flatMap((item) => item.fuelingItemIds ?? []),
+        otherPayments.flatMap((item) => item.fuelingItemIds ?? []),
     );
     const receivedFuelingIds = new Set(
-        payments
-            .filter((item) => item.id !== payment?.id)
-            .flatMap((item) => item.fuelingIds ?? []),
+        otherPayments.flatMap((item) => item.fuelingIds ?? []),
     );
+    const paidDeductionIds = new Set(
+        otherPayments.flatMap((item) => item.deductionIds ?? []),
+    );
+    const paidReimbursementIds = new Set(
+        otherPayments.flatMap((item) => item.reimbursementIds ?? []),
+    );
+
+    const byDate = (a: any, b: any) =>
+        String(a.date).localeCompare(String(b.date));
+
     const visibleFuelingItems = fuelingItems
         .filter(
             (item) =>
@@ -255,31 +274,21 @@ export function AlternativeLayoutDialog({
                 !receivedFuelingItemIds.has(item.id) &&
                 !receivedFuelingIds.has(item.fuelingId),
         )
-        .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+        .sort(byDate);
     const visibleMaintenanceItems = maintenanceItems
         .filter(
             (item) =>
                 isOnOrBeforePayment(item.date) &&
                 item.responsibility !== "minha",
         )
-        .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+        .sort(byDate);
     const visibleTolls = tripTolls
         .filter(
             (item) =>
                 isOnOrBeforePayment(item.date) &&
                 item.responsibility !== "minha",
         )
-        .sort((a, b) => String(a.date).localeCompare(String(b.date)));
-    const paidDeductionIds = new Set(
-        payments
-            .filter((item) => item.id !== payment?.id)
-            .flatMap((item) => item.deductionIds ?? []),
-    );
-    const paidReimbursementIds = new Set(
-        payments
-            .filter((item) => item.id !== payment?.id)
-            .flatMap((item) => item.reimbursementIds ?? []),
-    );
+        .sort(byDate);
     const visibleDeductions = (Array.isArray(deductions) ? deductions : [])
         .filter(
             (item) =>
@@ -287,7 +296,7 @@ export function AlternativeLayoutDialog({
                 isOnOrBeforePayment(item.date) &&
                 !paidDeductionIds.has(item.id),
         )
-        .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+        .sort(byDate);
     const visibleReimbursements = (
         Array.isArray(reimbursements) ? reimbursements : []
     )
@@ -297,11 +306,15 @@ export function AlternativeLayoutDialog({
                 isOnOrBeforePayment(item.date) &&
                 !paidReimbursementIds.has(item.id),
         )
-        .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+        .sort(byDate);
+
     const selectedFuelingItems = visibleFuelingItems.filter((item) =>
         selectedIds.includes(item.id),
     );
     const selectedExpenses = visibleMaintenanceItems.filter((item) =>
+        selectedIds.includes(item.id),
+    );
+    const selectedTolls = visibleTolls.filter((item) =>
         selectedIds.includes(item.id),
     );
     const selectedDeductions = visibleDeductions.filter((item) =>
@@ -310,10 +323,20 @@ export function AlternativeLayoutDialog({
     const selectedReimbursements = visibleReimbursements.filter((item) =>
         selectedIds.includes(item.id),
     );
+
+    const parsedRentPercent = Number(rentPercentInput);
+    const rentPercent = Number.isFinite(parsedRentPercent)
+        ? Math.min(1, Math.max(0, parsedRentPercent))
+        : 0;
+
+    // Valor bruto: soma de tripGrossValue (usa finalValueOverride quando existir)
     const grossValue = selectedTrips.reduce(
-        (total, trip) => total + (trip.finalValueOverride??trip.tableValue ?? trip.finalValue ?? 0),
+        (total, trip) => total + tripGrossValue(trip),
         0,
     );
+    const rentValue = grossValue * rentPercent;
+    const tripsNetValue = grossValue - rentValue;
+
     const signedValue = (
         items: Array<{ amount: number; responsibility?: string }>,
     ) =>
@@ -327,17 +350,14 @@ export function AlternativeLayoutDialog({
                       : 0),
             0,
         );
-    const fuelingsValue = signedValue(selectedFuelingItems);
-    const maintenanceValue = signedValue(selectedExpenses);
-    const tollsValue = signedValue(
-        tripTolls.filter((item) => selectedIds.includes(item.id)),
-    );
+
     const informedValue = (id: string, fallback: number) => {
         const raw = receivedByItem[id];
         if (raw === undefined || raw.trim() === "") return fallback;
         const parsed = Number(raw.replace(",", "."));
         return Number.isFinite(parsed) ? parsed : fallback;
     };
+
     const tripKm = (trip: {
         kmStart?: number;
         kmEnd?: number;
@@ -347,19 +367,39 @@ export function AlternativeLayoutDialog({
             return Math.max(0, (trip.kmEnd ?? 0) - (trip.kmStart ?? 0));
         return trip.manualDistance ?? 0;
     };
-    const parsedRentPercent = Number(rentPercentInput);
-    const rentPercent = Number.isFinite(parsedRentPercent)
-        ? Math.min(1, Math.max(0, parsedRentPercent))
-        : 0;
+
     const walletBalanceNum = Number(walletBalance) || 0;
+
+    const fuelingsValue = signedValue(selectedFuelingItems);
+    const maintenanceValue = signedValue(selectedExpenses);
+    const tollsValue = signedValue(selectedTolls);
+    const deductionsValue = selectedDeductions.reduce(
+        (total, item) => total + (item.amount || 0),
+        0,
+    );
+    const reimbursementsValue = selectedReimbursements.reduce(
+        (total, item) => total + (item.amount || 0),
+        0,
+    );
+
+    // Valor esperado (inclui viagens com finalValueOverride, já descontado o aluguel)
+    const expectedValue =
+        tripsNetValue +
+        fuelingsValue +
+        maintenanceValue +
+        tollsValue +
+        reimbursementsValue -
+        deductionsValue +
+        walletBalanceNum;
+
+    // Valor calculado a partir dos valores efetivamente informados em cada item
     const computedReceivedTotal =
         selectedTrips.reduce(
             (sum, trip) =>
                 sum +
                 informedValue(
                     trip.id,
-                    (trip.finalValueOverride ?? trip.tableValue ?? trip.finalValue ?? 0) *
-                        (1 - rentPercent),
+                    tripGrossValue(trip) * (1 - rentPercent),
                 ),
             0,
         ) +
@@ -376,12 +416,10 @@ export function AlternativeLayoutDialog({
             })),
         ) +
         signedValue(
-            tripTolls
-                .filter((item) => selectedIds.includes(item.id))
-                .map((item) => ({
-                    ...item,
-                    amount: informedValue(item.id, item.amount),
-                })),
+            selectedTolls.map((item) => ({
+                ...item,
+                amount: informedValue(item.id, item.amount),
+            })),
         ) -
         selectedDeductions.reduce(
             (sum, item) => sum + informedValue(item.id, item.amount || 0),
@@ -392,23 +430,7 @@ export function AlternativeLayoutDialog({
             0,
         ) +
         walletBalanceNum;
-    const deductionsValue = selectedDeductions.reduce(
-        (total, item) => total + (item.amount || 0),
-        0,
-    );
-    const reimbursementsValue = selectedReimbursements.reduce(
-        (total, item) => total + (item.amount || 0),
-        0,
-    );
-    const rentValue = grossValue * rentPercent;
-    const expectedValue =
-        grossValue * (1 - rentPercent) +
-        fuelingsValue +
-        maintenanceValue +
-        tollsValue +
-        reimbursementsValue -
-        deductionsValue +
-        walletBalanceNum;
+
     const ready = Boolean(truckId && destination);
     const parsedReceived = Number(receivedValue.replace(",", "."));
     const finalReceivedValue =
@@ -418,13 +440,11 @@ export function AlternativeLayoutDialog({
     const receivedDifference = Number(
         (finalReceivedValue - computedReceivedTotal).toFixed(2),
     );
+
     const completeReceivedByItem = Object.fromEntries([
         ...selectedTrips.map((item) => [
             item.id,
-            informedValue(
-                item.id,
-                (item.tableValue ?? item.finalValue ?? 0) * (1 - rentPercent),
-            ),
+            informedValue(item.id, tripGrossValue(item) * (1 - rentPercent)),
         ]),
         ...selectedFuelingItems.map((item) => [
             item.id,
@@ -434,18 +454,20 @@ export function AlternativeLayoutDialog({
             item.id,
             informedValue(item.id, item.amount),
         ]),
-        ...tripTolls
-            .filter((item) => selectedIds.includes(item.id))
-            .map((item) => [item.id, informedValue(item.id, item.amount)]),
-        ...selectedDeductions.map((item) => [
+        ...selectedTolls.map((item) => [
             item.id,
             informedValue(item.id, item.amount),
+        ]),
+        ...selectedDeductions.map((item) => [
+            item.id,
+            informedValue(item.id, item.amount || 0),
         ]),
         ...selectedReimbursements.map((item) => [
             item.id,
-            informedValue(item.id, item.amount),
+            informedValue(item.id, item.amount || 0),
         ]),
     ]);
+
     const paymentJson = {
         id: payment?.id ?? crypto.randomUUID(),
         date: paymentDate,
@@ -455,9 +477,7 @@ export function AlternativeLayoutDialog({
         expenseIds: selectedExpenses.map((item) => item.id),
         fuelingItemIds: selectedFuelingItems.map((item) => item.id),
         reimbursementIds: selectedReimbursements.map((item) => item.id),
-        tollIds: visibleTolls
-            .filter((toll) => selectedIds.includes(toll.id))
-            .map((toll) => toll.id),
+        tollIds: selectedTolls.map((toll) => toll.id),
         tripIds: selectedTrips.map((trip) => trip.id),
         deductionsValue: -deductionsValue,
         expenseValue: maintenanceValue,
@@ -491,6 +511,7 @@ export function AlternativeLayoutDialog({
             ],
         },
     };
+
     const jsonValue = {
         type: "registro-recebimento",
         version: 2,
@@ -498,7 +519,7 @@ export function AlternativeLayoutDialog({
         payment: paymentJson,
         trips: selectedTrips,
         fuelings: selectedFuelingItems,
-        tolls: visibleTolls.filter((toll) => selectedIds.includes(toll.id)),
+        tolls: selectedTolls,
         expenses: selectedExpenses,
         deductions: selectedDeductions,
         reimbursements: selectedReimbursements,
@@ -535,16 +556,8 @@ export function AlternativeLayoutDialog({
                 Number(savedPayment.receivedValue ?? 0) + additionalTotal;
             const expectedTotal = Number(savedPayment.expectedValue ?? 0);
             const balance = receivedTotal - expectedTotal;
-            if (receivedTotal < 0) {
-                const balance = receivedTotal
-                storedWallet[walletKey] = {
-                    truckId,
-                    destination,
-                    balance,
-                    updatedAt: savedPayment.date,
-                };
-            }
-            else if (receivedTotal > expectedTotal) {
+
+            if (receivedTotal < 0 || receivedTotal > expectedTotal) {
                 storedWallet[walletKey] = {
                     truckId,
                     destination,
@@ -563,27 +576,21 @@ export function AlternativeLayoutDialog({
         onBack();
     };
 
-    const toggleTrip = (id: string) =>
+    const toggleItem = (id: string) =>
         setSelectedIds((current) => {
             const selecting = !current.includes(id);
+            if (!selecting) return current.filter((item) => item !== id);
+            // Ao selecionar uma viagem, seleciona também os pedágios vinculados
             if (trips.some((trip) => trip.id === id)) {
                 const linkedTolls = tripTolls
                     .filter((toll) => toll.tripId === id)
-                    .map((toll) => toll.id);
-                return selecting
-                    ? [
-                          ...current,
-                          id,
-                          ...linkedTolls.filter(
-                              (tollId) => !current.includes(tollId),
-                          ),
-                      ]
-                    : current.filter((item) => item !== id);
+                    .map((toll) => toll.id)
+                    .filter((tollId) => !current.includes(tollId));
+                return [...current, id, ...linkedTolls];
             }
-            return selecting
-                ? [...current, id]
-                : current.filter((item) => item !== id);
+            return [...current, id];
         });
+
     const editTrip = (id: string, key: "cte" | "minuta", value: string) =>
         setTripEdits((current) => ({
             ...current,
@@ -599,6 +606,20 @@ export function AlternativeLayoutDialog({
                 [key]: value,
             },
         }));
+
+    const otherTabItems = (
+        activeTab === "Abastecimentos"
+            ? visibleFuelingItems
+            : activeTab === "Manutenções"
+              ? visibleMaintenanceItems
+              : activeTab === "Pedágios"
+                ? visibleTolls
+                : activeTab === "Descontos"
+                  ? visibleDeductions
+                  : activeTab === "Reembolsos"
+                    ? visibleReimbursements
+                    : []
+    ) as any[];
 
     return (
         <Dialog open={open} onOpenChange={(value) => !value && onBack()}>
@@ -652,6 +673,7 @@ export function AlternativeLayoutDialog({
                             </p>
                         </div>
                     </div>
+
                     <Card>
                         <CardContent className="grid gap-4 pt-6 sm:grid-cols-2">
                             <div>
@@ -727,6 +749,7 @@ export function AlternativeLayoutDialog({
                             </div>
                         </CardContent>
                     </Card>
+
                     {ready && (
                         <Card>
                             <CardHeader>
@@ -751,26 +774,14 @@ export function AlternativeLayoutDialog({
                             <CardContent>
                                 {activeTab !== "Viagens" ? (
                                     <div className="space-y-3">
-                                        {(
-                                            (activeTab === "Abastecimentos"
-                                                ? visibleFuelingItems
-                                                : activeTab === "Manutenções"
-                                                  ? visibleMaintenanceItems
-                                                  : activeTab === "Pedágios"
-                                                    ? visibleTolls
-                                                    : activeTab === "Descontos"
-                                                      ? visibleDeductions
-                                                      : activeTab ===
-                                                          "Reembolsos"
-                                                        ? visibleReimbursements
-                                                        : []) as any[]
-                                        )
+                                        {otherTabItems
                                             .filter(
                                                 (item) =>
                                                     item &&
                                                     typeof item === "object" &&
-                                                    "truckId" in item &&
-                                                    item.truckId === truckId,
+                                                    (!item.truckId ||
+                                                        item.truckId ===
+                                                            truckId),
                                             )
                                             .map((item) => {
                                                 const baseAmount =
@@ -789,7 +800,7 @@ export function AlternativeLayoutDialog({
                                                                 item.id,
                                                             )}
                                                             onCheckedChange={() =>
-                                                                toggleTrip(
+                                                                toggleItem(
                                                                     item.id,
                                                                 )
                                                             }
@@ -843,12 +854,7 @@ export function AlternativeLayoutDialog({
                                                                         {money(
                                                                             informedValue(
                                                                                 item.id,
-                                                                                activeTab ===
-                                                                                    "Viagens"
-                                                                                    ? baseAmount *
-                                                                                          (1 -
-                                                                                              rentPercent)
-                                                                                    : baseAmount,
+                                                                                baseAmount,
                                                                             ),
                                                                         )}
                                                                     </p>
@@ -950,9 +956,7 @@ export function AlternativeLayoutDialog({
                                                     minuta: trip.minuta ?? "",
                                                 };
                                                 const bruto =
-                                                    trip.finalValueOverride ??
-                                                    trip.finalValue ??
-                                                    0;
+                                                    tripGrossValue(trip);
                                                 const liquido =
                                                     bruto * (1 - rentPercent);
                                                 return (
@@ -967,7 +971,7 @@ export function AlternativeLayoutDialog({
                                                                     trip.id,
                                                                 )}
                                                                 onCheckedChange={() =>
-                                                                    toggleTrip(
+                                                                    toggleItem(
                                                                         trip.id,
                                                                     )
                                                                 }
@@ -1070,57 +1074,32 @@ export function AlternativeLayoutDialog({
                                                                     </div>
                                                                 </div>
                                                                 <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-                                                                    {edit.cte ? (
-                                                                        <button
-                                                                            type="button"
-                                                                            className="text-primary underline-offset-2 hover:underline"
-                                                                            onClick={() => {
-                                                                                const value =
-                                                                                    window.prompt(
-                                                                                        "Editar CTe",
-                                                                                        edit.cte,
-                                                                                    );
-                                                                                if (
-                                                                                    value !==
-                                                                                    null
-                                                                                )
-                                                                                    editTrip(
-                                                                                        trip.id,
-                                                                                        "cte",
-                                                                                        value,
-                                                                                    );
-                                                                            }}
-                                                                        >
-                                                                            CTe:{" "}
-                                                                            {
-                                                                                edit.cte
-                                                                            }
-                                                                        </button>
-                                                                    ) : (
-                                                                        <button
-                                                                            type="button"
-                                                                            className="text-primary underline-offset-2 hover:underline"
-                                                                            onClick={() => {
-                                                                                const value =
-                                                                                    window.prompt(
-                                                                                        "Informar CTe",
-                                                                                        "",
-                                                                                    );
-                                                                                if (
-                                                                                    value !==
-                                                                                    null
-                                                                                )
-                                                                                    editTrip(
-                                                                                        trip.id,
-                                                                                        "cte",
-                                                                                        value,
-                                                                                    );
-                                                                            }}
-                                                                        >
-                                                                            Adicionar
-                                                                            CTe
-                                                                        </button>
-                                                                    )}
+                                                                    <button
+                                                                        type="button"
+                                                                        className="text-primary underline-offset-2 hover:underline"
+                                                                        onClick={() => {
+                                                                            const value =
+                                                                                window.prompt(
+                                                                                    edit.cte
+                                                                                        ? "Editar CTe"
+                                                                                        : "Informar CTe",
+                                                                                    edit.cte,
+                                                                                );
+                                                                            if (
+                                                                                value !==
+                                                                                null
+                                                                            )
+                                                                                editTrip(
+                                                                                    trip.id,
+                                                                                    "cte",
+                                                                                    value,
+                                                                                );
+                                                                        }}
+                                                                    >
+                                                                        {edit.cte
+                                                                            ? `CTe: ${edit.cte}`
+                                                                            : "Adicionar CTe"}
+                                                                    </button>
                                                                     <button
                                                                         type="button"
                                                                         className="text-primary underline-offset-2 hover:underline"
@@ -1157,6 +1136,7 @@ export function AlternativeLayoutDialog({
                             </CardContent>
                         </Card>
                     )}
+
                     <Card>
                         <CardContent className="flex flex-col gap-4 pt-6">
                             <div className="grid gap-3 sm:grid-cols-7">
@@ -1244,10 +1224,8 @@ export function AlternativeLayoutDialog({
                                         value={
                                             receivedValue ||
                                             (computedReceivedTotal
-                                                ? String(
-                                                      computedReceivedTotal.toFixed(
-                                                          2,
-                                                      ),
+                                                ? computedReceivedTotal.toFixed(
+                                                      2,
                                                   )
                                                 : "")
                                         }
@@ -1274,6 +1252,7 @@ export function AlternativeLayoutDialog({
                         </CardContent>
                     </Card>
                 </div>
+
                 <DialogFooter>
                     <Button
                         type="button"
@@ -1322,6 +1301,7 @@ export function AlternativeLayoutDialog({
                     </Button>
                 </DialogFooter>
             </DialogContent>
+
             <Dialog
                 open={additionalPaymentOpen}
                 onOpenChange={setAdditionalPaymentOpen}
@@ -1433,6 +1413,7 @@ export function AlternativeLayoutDialog({
                     </form>
                 </DialogContent>
             </Dialog>
+
             <Dialog open={jsonOpen} onOpenChange={setJsonOpen}>
                 <DialogContent>
                     <DialogHeader>
