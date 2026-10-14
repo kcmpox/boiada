@@ -677,14 +677,16 @@ if (statusFilter === "pago" && !lockedIds.has(t.id)) return false;
                             <Pencil className="h-4 w-4" />
                           </Button>
                           {settings.editorMode && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              title="Editar JSON"
-                              onClick={() => {
-                                setJsonEditItem(t);
-                                setJsonEditOpen(true);
-                              }}
+  <Button
+  variant="ghost"
+  size="icon"
+  title={locked ? "Não é possível editar um pedágio em recebimento" : "Editar JSON"}
+  disabled={locked}
+  onClick={() => {
+  if (locked) return;
+  setJsonEditItem(t);
+  setJsonEditOpen(true);
+  }}
                             >
                               <Code2 className="h-4 w-4" />
                             </Button>

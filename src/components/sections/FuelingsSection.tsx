@@ -534,14 +534,16 @@ function FuelingsPage() {
                       <Pencil className="h-4 w-4" />
                     </Button>
                     {settings.editorMode && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        title="Editar JSON"
-                        onClick={() => {
-                          setJsonEditItem(source);
-                          setJsonEditOpen(true);
-                        }}
+  <Button
+  variant="ghost"
+  size="icon"
+  title={locked ? "Não é possível editar um abastecimento em recebimento" : "Editar JSON"}
+  disabled={locked}
+  onClick={() => {
+  if (locked) return;
+  setJsonEditItem(source);
+  setJsonEditOpen(true);
+  }}
                       >
                         <Code2 className="h-4 w-4" />
                       </Button>
