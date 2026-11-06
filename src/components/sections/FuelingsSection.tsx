@@ -1,10 +1,11 @@
 import { Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   useFuelings,
   useTrucks,
   useDrivers,
   usePayments,
+  paymentContainsCardId,
   useSettings,
   useActiveTrips,
   useTrips,
@@ -16,6 +17,8 @@ import {
   type Fueling,
   type FuelingItem,
   type ExpenseResponsibility,
+  type Attachment,
+  type Payment,
 } from "@/lib/storage";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -39,11 +42,24 @@ import {
   DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2, Calendar, Truck as TruckIcon, FileDown, X, Fuel, User as UserIcon, Lock, Archive, RotateCcw, Code as Code2, Search, MapPin, ClipboardList } from "lucide-react";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  Calendar,
+  Truck as TruckIcon,
+  FileDown,
+  Fuel,
+  User as UserIcon,
+  Lock,
+  Archive,
+  RotateCcw,
+  Code as Code2,
+  Search,
+  ClipboardList,
+} from "lucide-react";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
 import { AttachmentsField, AttachmentsList } from "@/components/Attachments";
-import type { Attachment } from "@/lib/storage";
 import { Pagination, PAGE_SIZE } from "@/components/Pagination";
 import { JsonEditorDialog } from "@/components/JsonEditorDialog";
 import { TruckNav, type TruckNavItem } from "@/components/TruckNav";
@@ -58,6 +74,24 @@ import {
   PDF_COLORS,
   th,
 } from "@/lib/pdf-theme";
+
+function isFuelingLocked(payment: Payment, fuelingId: string): boolean {
+  if (typeof paymentContainsCardId === "function" && paymentContainsCardId(payment, fuelingId)) {
+    return true;
+  }
+  const baseId = fuelingId.split("::")[0].split(":")[0];
+  if (payment.fuelingItemIds?.some((fid) => fid === baseId || fid.startsWith(`${baseId}:`))) {
+    return true;
+  }
+  if (payment.receivedByItem) {
+    for (const key of Object.keys(payment.receivedByItem)) {
+      if (key === baseId || key.startsWith(`${baseId}:`)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
 
 /** Compat: aceita registros antigos que usavam apenas deductFromPayment. */
 export function fuelResponsibility(f: Fueling): ExpenseResponsibility {
@@ -85,6 +119,7 @@ function totalOf(f: Fueling) {
   );
   return Math.max(0, itemsTotal - (f.generalDiscount || 0));
 }
+
 function litersOf(f: Fueling) {
   return f.items.filter((i) => i.kind === "combustivel").reduce((s, i) => s + i.quantity, 0);
 }
@@ -95,7 +130,17 @@ function FuelingsPage() {
   const [allTrips, setTrips] = useTrips();
   const [drivers] = useDrivers();
   const [payments] = usePayments();
-  const lockedIds = useMemo(() => new Set(payments.flatMap((p) => p.fuelingIds)), [payments]);
+
+  const lockedIds = useMemo(
+    () =>
+      new Set(
+        fuelings
+          .filter((fueling) => payments.some((payment) => isFuelingLocked(payment, fueling.id)))
+          .map((fueling) => fueling.id),
+      ),
+    [fuelings, payments],
+  );
+
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Fueling | null>(null);
   const [settings] = useSettings();
@@ -118,7 +163,8 @@ function FuelingsPage() {
         return false;
       if (truckFilter === "__archived__" && !f.archived) return false;
       if (truckFilter === "__without_fueling__") return false;
-      if (truckFilter !== "__all__" && !truckFilter.startsWith("__") && f.truckId !== truckFilter) return false;
+      if (truckFilter !== "__all__" && !truckFilter.startsWith("__") && f.truckId !== truckFilter)
+        return false;
       if (statusFilter === "aberto" && lockedIds.has(f.id)) return false;
       if (statusFilter === "pago" && !lockedIds.has(f.id)) return false;
       if (statusFilter === "arquivado" && !f.archived) return false;
@@ -131,14 +177,14 @@ function FuelingsPage() {
     () => [...filtered].sort((a, b) => b.date.localeCompare(a.date)),
     [filtered],
   );
-  const totalValue = useMemo(() => sorted.reduce((s, f) => s + totalOf(f), 0), [sorted]);
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const paged = useMemo(
     () => sorted.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
     [sorted, safePage],
   );
-  useMemo(() => {
+
+  useEffect(() => {
     setPage(1);
   }, [dateFrom, dateTo, driverFilter, truckFilter, statusFilter]);
 
@@ -152,8 +198,25 @@ function FuelingsPage() {
         count: fuelings.length,
       },
     ];
-    items.push({ key: "__archived__", label: "Arquivados", desc: "Registros arquivados", icon: Archive, count: fuelings.filter((f) => f.archived).length });
-    items.push({ key: "__without_fueling__", label: "Viagens sem abastecimento", desc: "Viagens sem registro", icon: ClipboardList, count: allTrips.filter((trip) => !trip.archived && !trip.withoutFueling && !fuelings.some((fueling) => fueling.tripId === trip.id)).length });
+    items.push({
+      key: "__archived__",
+      label: "Arquivados",
+      desc: "Registros arquivados",
+      icon: Archive,
+      count: fuelings.filter((f) => f.archived).length,
+    });
+    items.push({
+      key: "__without_fueling__",
+      label: "Viagens sem abastecimento",
+      desc: "Viagens sem registro",
+      icon: ClipboardList,
+      count: allTrips.filter(
+        (trip) =>
+          !trip.archived &&
+          !trip.withoutFueling &&
+          !fuelings.some((fueling) => fueling.tripId === trip.id),
+      ).length,
+    });
     for (const tr of trucks) {
       items.push({
         key: tr.id,
@@ -166,7 +229,6 @@ function FuelingsPage() {
     return items;
   }, [trucks, fuelings, allTrips]);
 
-  // Para km/l: precisamos do hodômetro anterior do mesmo caminhão (anterior em data)
   const prevOdometer = (f: Fueling): number | null => {
     const candidates = fuelings
       .filter((x) => x.truckId === f.truckId && x.id !== f.id)
@@ -182,6 +244,17 @@ function FuelingsPage() {
     }
     setFuelings((prev) => prev.filter((f) => f.id !== id));
     toast.success("Registro removido");
+  };
+
+  const toggleArchive = (source: Fueling) => {
+    if (lockedIds.has(source.id)) {
+      toast.error("Abastecimento está em um recebimento. Exclua o recebimento antes de arquivar.");
+      return;
+    }
+    setFuelings((prev) =>
+      prev.map((item) => (item.id === source.id ? { ...item, archived: !item.archived } : item)),
+    );
+    toast.success(source.archived ? "Abastecimento desarquivado" : "Abastecimento arquivado");
   };
 
   const generatePDF = async () => {
@@ -220,15 +293,21 @@ function FuelingsPage() {
         const truck = trucks.find((x) => x.id === truckId);
         const ordered = [...list].sort((a, b) => a.date.localeCompare(b.date));
         const subtotal = ordered.reduce((s, f) => s + totalOf(f), 0);
-        const subLiters = ordered.reduce((s, f) => s + litersOf(f), 0);
         const label = `${truck?.name ?? "Caminhão removido"} — ${truck?.plate ?? "—"}`;
         content.push({ ...pdfSectionTitle(label), ...(idx > 0 ? { pageBreak: "before" } : {}) });
 
         const rows: unknown[] = [
-          [th("ID abastecimento"), th("Data"), th("Hodômetro"), th("Descrição"), th("Quantidade"), th("Preço unitário"), th("Valor com desconto")],
+          [
+            th("ID abastecimento"),
+            th("Data"),
+            th("Hodômetro"),
+            th("Descrição"),
+            th("Quantidade"),
+            th("Preço unitário"),
+            th("Valor com desconto"),
+          ],
         ];
 
-        // ordered por data: hodômetro anterior dentro do grupo
         for (let i = 0; i < ordered.length; i++) {
           const f = ordered[i];
           for (const item of f.items) {
@@ -330,250 +409,343 @@ function FuelingsPage() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-[220px_1fr]">
-        <TruckNav items={navItems} value={truckFilter} onChange={(key) => { setTruckFilter(key); if (key === "__archived__") setStatusFilter("arquivado"); else setStatusFilter("__all__"); }} />
+        <TruckNav
+          items={navItems}
+          value={truckFilter}
+          onChange={(key) => {
+            setTruckFilter(key);
+            if (key === "__archived__") setStatusFilter("arquivado");
+            else setStatusFilter("__all__");
+          }}
+        />
         <div className="space-y-6">
-      <Card className="p-4 shadow-soft">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="fuel-date-from">De</Label>
-            <Input id="fuel-date-from" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="fuel-date-to">Até</Label>
-            <Input id="fuel-date-to" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Caminhão</Label>
-            <Select value={truckFilter} onValueChange={setTruckFilter}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">Todos</SelectItem>
-                {trucks.map((t) => (
-                  <SelectItem key={t.id} value={t.id}>
-                    {t.name} ({t.plate})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Motorista</Label>
-            <Select value={driverFilter} onValueChange={setDriverFilter}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">Todos</SelectItem>
-                <SelectItem value="__none__">Sem motorista</SelectItem>
-                {drivers.map((d) => (
-                  <SelectItem key={d.id} value={d.id}>
-                    {d.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5 sm:col-span-2 lg:col-span-4">
-            <Label>Status</Label>
-            <Select
-              value={statusFilter}
-              onValueChange={(v) => setStatusFilter(v as "__all__" | "aberto" | "pago" | "arquivado")}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">Todos</SelectItem>
-                <SelectItem value="aberto">Aberta</SelectItem>
-                <SelectItem value="pago">Recebido</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      </Card>
+          <Card className="p-4 shadow-soft">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="fuel-date-from">De</Label>
+                <Input
+                  id="fuel-date-from"
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="fuel-date-to">Até</Label>
+                <Input
+                  id="fuel-date-to"
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Caminhão</Label>
+                <Select value={truckFilter} onValueChange={setTruckFilter}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Todos</SelectItem>
+                    {trucks.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.name} ({t.plate})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Motorista</Label>
+                <Select value={driverFilter} onValueChange={setDriverFilter}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Todos</SelectItem>
+                    <SelectItem value="__none__">Sem motorista</SelectItem>
+                    {drivers.map((d) => (
+                      <SelectItem key={d.id} value={d.id}>
+                        {d.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5 sm:col-span-2 lg:col-span-4">
+                <Label>Status</Label>
+                <Select
+                  value={statusFilter}
+                  onValueChange={(v) =>
+                    setStatusFilter(v as "__all__" | "aberto" | "pago" | "arquivado")
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Todos</SelectItem>
+                    <SelectItem value="aberto">Aberta</SelectItem>
+                    <SelectItem value="pago">Recebido</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </Card>
 
-      {trucks.length === 0 && (
-        <Card className="p-6 shadow-soft">
-          <p className="text-sm">
-            Cadastre ao menos um{" "}
-            <Link to="/cadastros" className="text-primary underline">
-              caminhão
-            </Link>{" "}
-            antes de registrar abastecimentos.
-          </p>
-        </Card>
-      )}
+          {trucks.length === 0 && (
+            <Card className="p-6 shadow-soft">
+              <p className="text-sm">
+                Cadastre ao menos um{" "}
+                <Link to="/cadastros" className="text-primary underline">
+                  caminhão
+                </Link>{" "}
+                antes de registrar abastecimentos.
+              </p>
+            </Card>
+          )}
 
-      {truckFilter === "__without_fueling__" ? (
-        <div className="space-y-3">{allTrips.filter((trip) => !trip.archived && !trip.withoutFueling && !fuelings.some((fueling) => fueling.tripId === trip.id)).map((trip) => <Card key={trip.id} className="p-5"><div className="flex items-center justify-between gap-3"><div><p className="font-semibold">{trip.origin} → {trip.destination}</p><p className="text-sm text-muted-foreground">{formatDateBR(trip.date)} • {trip.minuta || trip.cte || "Sem documento"}</p></div><Button size="sm" onClick={() => { setTrips((prev) => prev.map((item) => item.id === trip.id ? { ...item, withoutFueling: true } : item)); toast.success("Viagem marcada sem abastecimento."); }}>Marcar sem abastecimento</Button></div></Card>)}</div>
-      ) : sorted.length === 0 ? (
-        <Card className="p-10 text-center text-muted-foreground">
-          Nenhum abastecimento registrado.
-        </Card>
-      ) : (
-        <div className="space-y-3">
-          {paged.flatMap((source) => {
-            const groups = Array.from(new Set(source.items.map((it) => itemResponsibility(source, it))));
-            return groups.map((responsibility) => ({ ...source, id: `${source.id}::${responsibility}`, items: source.items.filter((it) => itemResponsibility(source, it) === responsibility) }));
-          }).map((f) => {
-            const sourceId = f.id.split("::")[0];
-            const source = fuelings.find((item) => item.id === sourceId) ?? f;
-            const truck = trucks.find((x) => x.id === source.truckId);
-            const driver = drivers.find((x) => x.id === f.driverId);
-            const total = totalOf(f);
-            const liters = litersOf(f);
-            const prev = prevOdometer(source);
-            const kml =
-              prev != null && liters > 0 && f.odometer > prev ? (f.odometer - prev) / liters : null;
-            const locked = lockedIds.has(f.id);
-            return (
-              <Card key={f.id} className="p-5 shadow-soft">
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div className="space-y-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Calendar className="h-3 w-3" />
-                        {formatDateBR(f.date)}
-                      </span>
-                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <TruckIcon className="h-3 w-3" />
-                        {truck?.name ?? "—"} ({truck?.plate ?? "—"})
-                      </span>
-                      {driver && (
-                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <UserIcon className="h-3 w-3" />
-                          {driver.name}
-                        </span>
-                      )}
-                      {(() => {
-                        const set = new Set(f.items.map((it) => itemResponsibility(f, it)));
-                        if (set.size > 1) {
-                          return <Badge variant="outline">Misto</Badge>;
-                        }
-                        const r = [...set][0] ?? fuelResponsibility(f);
-                        return (
-                          <Badge
-                            variant={
-                              r === "minha"
-                                ? "destructive"
-                                : r === "ressarcir"
-                                  ? "default"
-                                  : "secondary"
-                            }
-                          >
-                            {FUEL_RESP_LABEL[r]}
-                          </Badge>
-                        );
-                      })()}
-                      {locked && (
-                        <Badge variant="outline" className="border-amber-500 text-amber-600">
-                          <Lock className="mr-1 h-3 w-3" /> Em recebimento
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="flex items-center gap-2 text-base font-semibold">
-                      <Fuel className="h-4 w-4 text-accent" />
-                      Hodômetro: {f.odometer.toLocaleString("pt-BR")} km
-                      {liters > 0 && (
-                        <span className="text-muted-foreground">
-                          {" "}
-                          • {liters.toLocaleString("pt-BR")} L
-                        </span>
-                      )}
-                    </p>
-                    <ul className="text-sm text-muted-foreground space-y-0.5">
-                      {f.items.map((it, idx) => (
-                        <li key={idx} className="flex flex-wrap items-center gap-1">
-                          <span>
-                            {it.kind === "combustivel" ? "⛽ " : "• "}
-                            {it.description ||
-                              (it.kind === "combustivel" ? "Combustível" : "Item")}{" "}
-                            — {it.quantity.toFixed(3).replace(".", ",")}
-                            {it.kind === "combustivel" ? " L" : ""} × {formatBRL(it.unitPrice)}
-                            {it.discount ? ` - ${formatBRL(it.discount)}` : ""} ={" "}
-                            {formatBRL(it.quantity * it.unitPrice - (it.discount || 0))}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                    {(f.nfe || f.generalDiscount) && (
-                      <div className="flex flex-wrap gap-2 text-xs">
-                        {f.nfe && (
-                          <Badge variant="outline">NFe: {f.nfe}</Badge>
-                        )}
-                        {f.generalDiscount ? (
-                          <Badge variant="outline">
-                            Desc. geral: - {formatBRL(f.generalDiscount)}
-                          </Badge>
-                        ) : null}
+          {truckFilter === "__without_fueling__" ? (
+            <div className="space-y-3">
+              {allTrips
+                .filter(
+                  (trip) =>
+                    !trip.archived &&
+                    !trip.withoutFueling &&
+                    !fuelings.some((fueling) => fueling.tripId === trip.id),
+                )
+                .map((trip) => (
+                  <Card key={trip.id} className="p-5">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="font-semibold">
+                          {trip.origin} → {trip.destination}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {formatDateBR(trip.date)} • {trip.minuta || trip.cte || "Sem documento"}
+                        </p>
                       </div>
-                    )}
-                    <AttachmentsList items={f.attachments} />
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-right">
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Total</p>
-                      <p className="text-2xl font-bold text-primary">{formatBRL(total)}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {kml != null ? `${kml.toFixed(2)} km/L` : "km/L —"}
-                      </p>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      disabled={locked}
-                      onClick={() => {
-                        setEditing(source);
-                        setOpen(true);
-                      }}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    {settings.editorMode && (
-  <Button
-  variant="ghost"
-  size="icon"
-  title={locked ? "Não é possível editar um abastecimento em recebimento" : "Editar JSON"}
-  disabled={locked}
-  onClick={() => {
-  if (locked) return;
-  setJsonEditItem(source);
-  setJsonEditOpen(true);
-  }}
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          setTrips((prev) =>
+                            prev.map((item) =>
+                              item.id === trip.id ? { ...item, withoutFueling: true } : item,
+                            ),
+                          );
+                          toast.success("Viagem marcada sem abastecimento.");
+                        }}
                       >
-                        <Code2 className="h-4 w-4" />
+                        Marcar sem abastecimento
                       </Button>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      disabled={locked}
-                      title={source.archived ? "Desarquivar" : "Arquivar"}
-                      onClick={() => {
-                        setFuelings((prev) => prev.map((item) => item.id === source.id ? { ...item, archived: !item.archived } : item));
-                        toast.success(source.archived ? "Abastecimento desarquivado" : "Abastecimento arquivado");
-                      }}
+                    </div>
+                  </Card>
+                ))}
+            </div>
+          ) : sorted.length === 0 ? (
+            <Card className="p-10 text-center text-muted-foreground">
+              Nenhum abastecimento registrado.
+            </Card>
+          ) : (
+            <div className="space-y-3">
+              {paged
+                .flatMap((source) => {
+                  const groups = Array.from(
+                    new Set(source.items.map((it) => itemResponsibility(source, it))),
+                  );
+                  return groups.map((responsibility) => ({
+                    ...source,
+                    id: `${source.id}::${responsibility}`,
+                    items: source.items.filter(
+                      (it) => itemResponsibility(source, it) === responsibility,
+                    ),
+                  }));
+                })
+                .map((f) => {
+                  const sourceId = f.id.split("::")[0];
+                  const source = fuelings.find((item) => item.id === sourceId) ?? f;
+                  const truck = trucks.find((x) => x.id === source.truckId);
+                  const driver = drivers.find((x) => x.id === f.driverId);
+                  const total = totalOf(f);
+                  const liters = litersOf(f);
+                  const prev = prevOdometer(source);
+                  const kml =
+                    prev != null && liters > 0 && f.odometer > prev
+                      ? (f.odometer - prev) / liters
+                      : null;
+                  const locked = lockedIds.has(source.id);
+
+                  return (
+                    <Card
+                      key={f.id}
+                      className="overflow-hidden border-border/70 bg-card shadow-soft transition-shadow hover:shadow-md"
                     >
-                      {source.archived ? <RotateCcw className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      disabled={locked}
-                      onClick={() => remove(source.id)}
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  </div>
-                </div>
-              </Card>
-            );
-          })}
-          <Pagination page={safePage} totalPages={totalPages} onChange={setPage} />
-        </div>
-      )}
+                      <div className="flex flex-col gap-5 p-5 sm:p-6">
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between gap-3 border-b border-border/60 pb-3">
+                            <p className="text-sm font-semibold text-foreground">Abastecimento</p>
+                            <span className="text-xs text-muted-foreground">
+                              ID: {source.id.slice(0, 8)}
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            {(() => {
+                              const set = new Set(f.items.map((it) => itemResponsibility(f, it)));
+                              if (set.size > 1) {
+                                return <Badge variant="outline">Misto</Badge>;
+                              }
+                              const r = [...set][0] ?? fuelResponsibility(f);
+                              return (
+                                <Badge
+                                  variant={
+                                    r === "minha"
+                                      ? "destructive"
+                                      : r === "ressarcir"
+                                        ? "default"
+                                        : "secondary"
+                                  }
+                                >
+                                  {FUEL_RESP_LABEL[r]}
+                                </Badge>
+                              );
+                            })()}
+                            {locked && (
+                              <Badge variant="outline" className="border-amber-500 text-amber-600">
+                                <Lock className="mr-1 h-3 w-3" /> Em recebimento
+                              </Badge>
+                            )}
+                            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <Calendar className="h-3 w-3" />
+                              {formatDateBR(f.date)}
+                            </span>
+                            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <TruckIcon className="h-3 w-3" />
+                              {truck?.name ?? "—"} ({truck?.plate ?? "—"})
+                            </span>
+                            {driver && (
+                              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                <UserIcon className="h-3 w-3" />
+                                {driver.name}
+                              </span>
+                            )}
+                          </div>
+                          <p className="flex items-center gap-2 text-base font-semibold">
+                            <Fuel className="h-4 w-4 text-accent" />
+                            Hodômetro: {f.odometer.toLocaleString("pt-BR")} km
+                            {liters > 0 && (
+                              <span className="text-muted-foreground">
+                                {" "}
+                                • {liters.toLocaleString("pt-BR")} L
+                              </span>
+                            )}
+                          </p>
+                          <ul className="space-y-0.5 text-sm text-muted-foreground">
+                            {f.items.map((it, idx) => (
+                              <li key={idx} className="flex flex-wrap items-center gap-1">
+                                <span>
+                                  {it.kind === "combustivel" ? "⛽ " : "• "}
+                                  {it.description ||
+                                    (it.kind === "combustivel" ? "Combustível" : "Item")}{" "}
+                                  — {it.quantity.toFixed(3).replace(".", ",")}
+                                  {it.kind === "combustivel" ? " L" : ""} × {formatBRL(it.unitPrice)}
+                                  {it.discount ? ` - ${formatBRL(it.discount)}` : ""} ={" "}
+                                  {formatBRL(it.quantity * it.unitPrice - (it.discount || 0))}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                          {(f.nfe || f.generalDiscount) && (
+                            <div className="flex flex-wrap gap-2 text-xs">
+                              {f.nfe && <Badge variant="outline">NFe: {f.nfe}</Badge>}
+                              {f.generalDiscount ? (
+                                <Badge variant="outline">
+                                  Desc. geral: - {formatBRL(f.generalDiscount)}
+                                </Badge>
+                              ) : null}
+                            </div>
+                          )}
+                          <AttachmentsList items={f.attachments} />
+                        </div>
+                        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-4">
+                          <div className="text-right">
+                            <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                              Total
+                            </p>
+                            <p className="text-2xl font-bold text-primary">{formatBRL(total)}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {kml != null ? `${kml.toFixed(2)} km/L` : "km/L —"}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              disabled={locked}
+                              title={locked ? "Abastecimento em recebimento" : "Editar"}
+                              onClick={() => {
+                                if (locked) return;
+                                setEditing(source);
+                                setOpen(true);
+                              }}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            {settings.editorMode && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                title={
+                                  locked
+                                    ? "Não é possível editar um abastecimento em recebimento"
+                                    : "Editar JSON"
+                                }
+                                disabled={locked}
+                                onClick={() => {
+                                  if (locked) return;
+                                  setJsonEditItem(source);
+                                  setJsonEditOpen(true);
+                                }}
+                              >
+                                <Code2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              disabled={locked}
+                              title={
+                                locked
+                                  ? "Abastecimento em recebimento"
+                                  : source.archived
+                                    ? "Desarquivar"
+                                    : "Arquivar"
+                              }
+                              onClick={() => toggleArchive(source)}
+                            >
+                              {source.archived ? (
+                                <RotateCcw className="h-4 w-4" />
+                              ) : (
+                                <Archive className="h-4 w-4" />
+                              )}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              disabled={locked}
+                              title={locked ? "Abastecimento em recebimento" : "Excluir"}
+                              onClick={() => remove(source.id)}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </Card>
+                  );
+                })}
+              <Pagination page={safePage} totalPages={totalPages} onChange={setPage} />
+            </div>
+          )}
         </div>
       </div>
 
@@ -610,10 +782,15 @@ function FuelingDialog({
   const [allTrips] = useTrips();
   const [showLinkedTrips, setShowLinkedTrips] = useState(Boolean(fueling?.tripId));
   const [alternativeLayout, setAlternativeLayout] = useState(false);
+
   const selectableTrips = useMemo(() => {
-    if (showLinkedTrips) return allTrips.filter((trip) => !trip.withoutFueling || trip.id === fueling?.tripId);
+    if (showLinkedTrips)
+      return allTrips.filter((trip) => !trip.withoutFueling || trip.id === fueling?.tripId);
     const linkedTripIds = new Set(allFuelings.map((item) => item.tripId).filter(Boolean));
-    return allTrips.filter((trip) => trip.id === fueling?.tripId || (!trip.withoutFueling && !linkedTripIds.has(trip.id)));
+    return allTrips.filter(
+      (trip) =>
+        trip.id === fueling?.tripId || (!trip.withoutFueling && !linkedTripIds.has(trip.id)),
+    );
   }, [showLinkedTrips, allTrips, allFuelings, fueling?.tripId]);
 
   const availableDrivers = useMemo(
@@ -621,9 +798,7 @@ function FuelingDialog({
     [drivers, fueling?.driverId],
   );
 
-  const [date, setDate] = useState(
-    toBrasiliaInput(fueling?.date),
-  );
+  const [date, setDate] = useState(toBrasiliaInput(fueling?.date));
   const [truckId, setTruckId] = useState(fueling?.truckId ?? trucks[0]?.id ?? "");
   const [driverId, setDriverId] = useState(fueling?.driverId ?? availableDrivers[0]?.id ?? "");
   const [tripId, setTripId] = useState(fueling?.tripId ?? "");
@@ -643,7 +818,6 @@ function FuelingDialog({
   const [nfe, setNfe] = useState(fueling?.nfe ?? "");
   const [attachments, setAttachments] = useState<Attachment[]>(fueling?.attachments ?? []);
 
-  // Hodômetro anterior do caminhão selecionado
   const lastOdometer = useMemo(() => {
     const list = allFuelings
       .filter((x) => x.truckId === truckId && x.id !== fueling?.id)
@@ -699,8 +873,15 @@ function FuelingDialog({
       return;
     }
     const normalizedRef = tripRef.trim().toLowerCase();
-    const matches = normalizedRef ? trips.filter((trip) => trip.cte?.toLowerCase() === normalizedRef || trip.minuta?.toLowerCase() === normalizedRef) : [];
-    if (normalizedRef && matches.length > 1) toast.warning("Mais de uma viagem possui essa minuta/CTE. Selecione a viagem correta.");
+    const matches = normalizedRef
+      ? trips.filter(
+          (trip) =>
+            trip.cte?.toLowerCase() === normalizedRef ||
+            trip.minuta?.toLowerCase() === normalizedRef,
+        )
+      : [];
+    if (normalizedRef && matches.length > 1)
+      toast.warning("Mais de uma viagem possui essa minuta/CTE. Selecione a viagem correta.");
     const resolvedTripId = matches.length === 1 ? matches[0].id : tripId;
     if (matches.length === 1) setTripId(resolvedTripId);
     const finalOdometer = odometer !== "" ? Number(odometer) : (lastOdometer ?? 0);
@@ -733,14 +914,30 @@ function FuelingDialog({
   }
 
   return (
-    <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+    <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
       <div className="flex justify-center">
-        <label className="flex items-center gap-2 text-xs text-muted-foreground">Novo layout <Switch checked={alternativeLayout} onCheckedChange={setAlternativeLayout} aria-label="Ativar novo layout" /></label>
+        <label className="flex items-center gap-2 text-xs text-muted-foreground">
+          Novo layout{" "}
+          <Switch
+            checked={alternativeLayout}
+            onCheckedChange={setAlternativeLayout}
+            aria-label="Ativar novo layout"
+          />
+        </label>
       </div>
       <DialogHeader className="rounded-xl bg-primary/5 p-5">
         <div className="flex items-center gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground"><Fuel className="h-5 w-5" /></span>
-          <div><DialogTitle className="text-xl">{fueling ? "Editar abastecimento" : "Novo abastecimento"}</DialogTitle><p className="text-sm text-muted-foreground">Registre o abastecimento e classifique cada item.</p></div>
+          <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+            <Fuel className="h-5 w-5" />
+          </span>
+          <div>
+            <DialogTitle className="text-xl">
+              {fueling ? "Editar abastecimento" : "Novo abastecimento"}
+            </DialogTitle>
+            <p className="text-sm text-muted-foreground">
+              Registre o abastecimento e classifique cada item.
+            </p>
+          </div>
         </div>
       </DialogHeader>
       <form onSubmit={submit} className="grid gap-5 sm:grid-cols-2">
@@ -783,25 +980,64 @@ function FuelingDialog({
         </div>
         <div>
           <Label>Viagem vinculada</Label>
-          <Select value={tripId || "__none__"} onValueChange={(value) => setTripId(value === "__none__" ? "" : value)}>
-            <SelectTrigger><SelectValue placeholder="Selecione uma viagem" /></SelectTrigger>
+          <Select
+            value={tripId || "__none__"}
+            onValueChange={(value) => setTripId(value === "__none__" ? "" : value)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Selecione uma viagem" />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="__none__">Sem vínculo</SelectItem>
-              {selectableTrips.map((trip) => <SelectItem key={trip.id} value={trip.id}>{formatDateBR(trip.date)} — {trip.origin} → {trip.destination}{allFuelings.some((item) => item.tripId === trip.id) ? " (já vinculada)" : ""}</SelectItem>)}
+              {selectableTrips.map((trip) => (
+                <SelectItem key={trip.id} value={trip.id}>
+                  {formatDateBR(trip.date)} — {trip.origin} → {trip.destination}
+                  {allFuelings.some((item) => item.tripId === trip.id) ? " (já vinculada)" : ""}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
-          <label className="mt-2 flex items-center gap-2 text-xs text-muted-foreground"><Checkbox checked={showLinkedTrips} onCheckedChange={(checked) => setShowLinkedTrips(checked === true)} /> Exibir viagens já vinculadas</label>
+          <label className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+            <Checkbox
+              checked={showLinkedTrips}
+              onCheckedChange={(checked) => setShowLinkedTrips(checked === true)}
+            />{" "}
+            Exibir viagens já vinculadas
+          </label>
           <div className="mt-2 flex gap-2">
-            <Input value={tripRef} onChange={(e) => setTripRef(e.target.value)} placeholder="Minuta ou CTe" />
-            <Button type="button" size="icon" variant="outline" aria-label="Pesquisar viagem" title="Pesquisar viagem" onClick={() => {
-              const ref = tripRef.trim().toLowerCase();
-              const matches = ref ? trips.filter((trip) => trip.cte?.toLowerCase() === ref || trip.minuta?.toLowerCase() === ref) : [];
-              if (matches.length === 1) { setTripId(matches[0].id); toast.success("Viagem encontrada"); }
-              else if (matches.length > 1) toast.warning("Mais de uma viagem encontrada. Escolha no campo acima.");
-              else toast.error("Nenhuma viagem encontrada.");
-            }}><Search className="h-4 w-4" /></Button>
+            <Input
+              value={tripRef}
+              onChange={(e) => setTripRef(e.target.value)}
+              placeholder="Minuta ou CTe"
+            />
+            <Button
+              type="button"
+              size="icon"
+              variant="outline"
+              aria-label="Pesquisar viagem"
+              title="Pesquisar viagem"
+              onClick={() => {
+                const ref = tripRef.trim().toLowerCase();
+                const matches = ref
+                  ? trips.filter(
+                      (trip) =>
+                        trip.cte?.toLowerCase() === ref || trip.minuta?.toLowerCase() === ref,
+                    )
+                  : [];
+                if (matches.length === 1) {
+                  setTripId(matches[0].id);
+                  toast.success("Viagem encontrada");
+                } else if (matches.length > 1)
+                  toast.warning("Mais de uma viagem encontrada. Escolha no campo acima.");
+                else toast.error("Nenhuma viagem encontrada.");
+              }}
+            >
+              <Search className="h-4 w-4" />
+            </Button>
           </div>
-          <p className="mt-1 text-xs text-muted-foreground">Digite uma minuta ou CTe e pesquise para vincular.</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Digite uma minuta ou CTe e pesquise para vincular.
+          </p>
         </div>
         <div>
           <Label>Hodômetro (km)</Label>
@@ -841,7 +1077,7 @@ function FuelingDialog({
           {items.map((it, idx) => (
             <div
               key={idx}
-              className="grid grid-cols-12 gap-2 items-end rounded-md border border-border p-3"
+              className="grid grid-cols-12 items-end gap-2 rounded-md border border-border p-3"
             >
               <div className="col-span-2">
                 <Label className="text-xs">Tipo</Label>
@@ -888,9 +1124,20 @@ function FuelingDialog({
               </div>
               <div className="col-span-2">
                 <Label className="text-xs">Responsável</Label>
-                <Select value={it.responsibility ?? responsibility} onValueChange={(v) => updateItem(idx, { responsibility: v as ExpenseResponsibility })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent><SelectItem value="minha">Minha despesa</SelectItem><SelectItem value="desconto">Frigorífico desconta</SelectItem><SelectItem value="ressarcir">Frigorífico ressarce</SelectItem></SelectContent>
+                <Select
+                  value={it.responsibility ?? responsibility}
+                  onValueChange={(v) =>
+                    updateItem(idx, { responsibility: v as ExpenseResponsibility })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="minha">Minha despesa</SelectItem>
+                    <SelectItem value="desconto">Frigorífico desconta</SelectItem>
+                    <SelectItem value="ressarcir">Frigorífico ressarce</SelectItem>
+                  </SelectContent>
                 </Select>
               </div>
               <div className="col-span-2">
@@ -913,7 +1160,6 @@ function FuelingDialog({
                   <Trash2 className="h-4 w-4 text-destructive" />
                 </Button>
               </div>
-
             </div>
           ))}
         </div>

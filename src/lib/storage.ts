@@ -441,6 +441,18 @@ export const useExpenses = () => useStored<Expense[]>(KEYS.expenses, []);
 export const useTolls = () => useStored<Toll[]>(KEYS.tolls, []);
 export const useTollLocations = () => useStored<TollLocation[]>(KEYS.tollLocations, []);
 export const usePayments = () => useStored<Payment[]>(KEYS.payments, []);
+
+/** Verifica se um ID de card aparece exatamente em qualquer campo de um gt_payment. */
+export function paymentContainsCardId(payment: Payment, cardId: string): boolean {
+  const visit = (value: unknown): boolean => {
+    if (value === cardId) return true;
+    if (Array.isArray(value)) return value.some(visit);
+    if (value && typeof value === "object") return Object.values(value).some(visit);
+    return false;
+  };
+  return visit(payment);
+}
+
 export const useAdjustments = () => useStored<PaymentAdjustment[]>(KEYS.adjustments, []);
 const useSeparatedEntries = (key: string, type: OtherDeductionReimbursement["type"]) => {
   const [entries, setEntries] = useStored<OtherDeductionReimbursement[]>(key, []);

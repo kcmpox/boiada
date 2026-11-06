@@ -1,10 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   useTolls,
   useTollLocations,
   useTrucks,
   useDrivers,
   usePayments,
+  paymentContainsCardId,
   useActiveTrips,
   useSettings,
   uid,
@@ -15,6 +16,7 @@ import {
   type Toll,
   type ExpenseResponsibility,
   type Attachment,
+  type Payment,
 } from "@/lib/storage";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -47,7 +49,6 @@ import {
   Calendar,
   Truck as TruckIcon,
   FileDown,
-  X,
   Coins,
   User as UserIcon,
   Zap,
@@ -58,7 +59,6 @@ import {
   ListFilter as Filter,
   MapPin,
   Route,
-  ArrowRight,
   Archive,
   RotateCcw,
 } from "lucide-react";
@@ -76,6 +76,24 @@ import {
   th,
 } from "@/lib/pdf-theme";
 import { cn } from "@/lib/utils";
+
+function isTollLocked(payment: Payment, tollId: string): boolean {
+  if (typeof paymentContainsCardId === "function" && paymentContainsCardId(payment, tollId)) {
+    return true;
+  }
+  const baseId = tollId.split("::")[0].split(":")[0];
+  if (payment.tollIds?.includes(baseId)) return true;
+  if (payment.reimbursementIds?.includes(baseId)) return true;
+  if (payment.deductionIds?.includes(baseId)) return true;
+  if (payment.receivedByItem) {
+    for (const key of Object.keys(payment.receivedByItem)) {
+      if (key === baseId || key.startsWith(`${baseId}:`)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
 
 const RESP_LABEL: Record<ExpenseResponsibility, string> = {
   minha: "Minha despesa",
@@ -115,7 +133,17 @@ export function TollsSection() {
   const [drivers] = useDrivers();
   const [payments] = usePayments();
   const [trips] = useActiveTrips();
-  const lockedIds = useMemo(() => new Set(payments.flatMap((p) => p.tollIds)), [payments]);
+
+  const lockedIds = useMemo(
+    () =>
+      new Set(
+        tolls
+          .filter((toll) => payments.some((payment) => isTollLocked(payment, toll.id)))
+          .map((toll) => toll.id),
+      ),
+    [tolls, payments],
+  );
+
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Toll | null>(null);
   const [settings] = useSettings();
@@ -144,13 +172,17 @@ export function TollsSection() {
         if (dateFrom && d < dateFrom) return false;
         if (dateTo && d > dateTo) return false;
         if (driverFilter === "__none__" && t.driverId) return false;
-        if (driverFilter !== "__all__" && driverFilter !== "__none__" && t.driverId !== driverFilter)
+        if (
+          driverFilter !== "__all__" &&
+          driverFilter !== "__none__" &&
+          t.driverId !== driverFilter
+        )
           return false;
         if (statusFilter === "aberto" && lockedIds.has(t.id)) return false;
-if (statusFilter === "pago" && !lockedIds.has(t.id)) return false;
-      if (statusFilter === "arquivado" && !t.archived) return false;
-      if (statusFilter !== "arquivado" && t.archived) return false;
-      if (view === "unlinked") {
+        if (statusFilter === "pago" && !lockedIds.has(t.id)) return false;
+        if (statusFilter === "arquivado" && !t.archived) return false;
+        if (statusFilter !== "arquivado" && t.archived) return false;
+        if (view === "unlinked") {
           if (t.tripId) return false;
         } else if (isTruckView) {
           if (t.truckId !== view) return false;
@@ -164,14 +196,14 @@ if (statusFilter === "pago" && !lockedIds.has(t.id)) return false;
     () => [...filtered].sort((a, b) => b.dateTime.localeCompare(a.dateTime)),
     [filtered],
   );
-  const totalValue = useMemo(() => sorted.reduce((s, t) => s + t.value, 0), [sorted]);
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const paged = useMemo(
     () => sorted.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
     [sorted, safePage],
   );
-  useMemo(() => {
+
+  useEffect(() => {
     setPage(1);
   }, [dateFrom, dateTo, driverFilter, statusFilter, view]);
 
@@ -182,6 +214,17 @@ if (statusFilter === "pago" && !lockedIds.has(t.id)) return false;
     }
     setTolls((prev) => prev.filter((t) => t.id !== id));
     toast.success("Pedágio removido");
+  };
+
+  const toggleArchive = (t: Toll) => {
+    if (lockedIds.has(t.id)) {
+      toast.error("Pedágio está em um recebimento. Exclua o recebimento antes de arquivar.");
+      return;
+    }
+    setTolls((prev) =>
+      prev.map((item) => (item.id === t.id ? { ...item, archived: !item.archived } : item)),
+    );
+    toast.success(t.archived ? "Pedágio desarquivado" : "Pedágio arquivado");
   };
 
   const suggestTrip = (toll: Toll): { tripId: string; label: string } | null => {
@@ -209,6 +252,10 @@ if (statusFilter === "pago" && !lockedIds.has(t.id)) return false;
   };
 
   const linkTrip = (toll: Toll, tripId: string) => {
+    if (lockedIds.has(toll.id)) {
+      toast.error("Pedágio está em um recebimento e não pode ser alterado.");
+      return;
+    }
     setTolls((prev) =>
       prev.map((t) => (t.id === toll.id ? { ...t, tripId: tripId || undefined } : t)),
     );
@@ -262,7 +309,13 @@ if (statusFilter === "pago" && !lockedIds.has(t.id)) return false;
         }
         const subtotal = list.reduce((s, x) => s + x.value, 0);
         rows.push([
-          { text: `Subtotal (${list.length})`, colSpan: 3, alignment: "right", bold: true, color: PDF_COLORS.primaryDark },
+          {
+            text: `Subtotal (${list.length})`,
+            colSpan: 3,
+            alignment: "right",
+            bold: true,
+            color: PDF_COLORS.primaryDark,
+          },
           {},
           {},
           { text: formatBRL(subtotal), bold: true, color: PDF_COLORS.primaryDark },
@@ -279,14 +332,38 @@ if (statusFilter === "pago" && !lockedIds.has(t.id)) return false;
             : `${truck?.name ?? "Caminhão removido"} — ${truck?.plate ?? "—"}`;
         content.push({ ...pdfSectionTitle(label), ...(idx > 0 ? { pageBreak: "before" } : {}) });
         if (g.semParar.length > 0) {
-          const { rows } = buildTable([...g.semParar].sort((a, b) => a.dateTime.localeCompare(b.dateTime)));
-          content.push({ text: "Sem Parar", bold: true, fontSize: 10, color: PDF_COLORS.accent, margin: [0, 4, 0, 4] });
-          content.push({ table: { headerRows: 1, widths: ["auto", "*", "*", "auto"], body: rows }, layout: pdfTableLayout, fontSize: 9 });
+          const { rows } = buildTable(
+            [...g.semParar].sort((a, b) => a.dateTime.localeCompare(b.dateTime)),
+          );
+          content.push({
+            text: "Sem Parar",
+            bold: true,
+            fontSize: 10,
+            color: PDF_COLORS.accent,
+            margin: [0, 4, 0, 4],
+          });
+          content.push({
+            table: { headerRows: 1, widths: ["auto", "*", "*", "auto"], body: rows },
+            layout: pdfTableLayout,
+            fontSize: 9,
+          });
         }
         if (g.normal.length > 0) {
-          const { rows } = buildTable([...g.normal].sort((a, b) => a.dateTime.localeCompare(b.dateTime)));
-          content.push({ text: "Pagamento normal", bold: true, fontSize: 10, color: PDF_COLORS.muted, margin: [0, 6, 0, 4] });
-          content.push({ table: { headerRows: 1, widths: ["auto", "*", "*", "auto"], body: rows }, layout: pdfTableLayout, fontSize: 9 });
+          const { rows } = buildTable(
+            [...g.normal].sort((a, b) => a.dateTime.localeCompare(b.dateTime)),
+          );
+          content.push({
+            text: "Pagamento normal",
+            bold: true,
+            fontSize: 10,
+            color: PDF_COLORS.muted,
+            margin: [0, 6, 0, 4],
+          });
+          content.push({
+            table: { headerRows: 1, widths: ["auto", "*", "*", "auto"], body: rows },
+            layout: pdfTableLayout,
+            fontSize: 9,
+          });
         }
       });
       content.push({
@@ -305,13 +382,37 @@ if (statusFilter === "pago" && !lockedIds.has(t.id)) return false;
   };
 
   const navItems = useMemo(() => {
-    const items: { key: TollView; label: string; icon: typeof Coins; desc: string; count: number }[] = [
-      { key: "all", label: "Todos os pedágios", icon: Coins, desc: "Ver todos os registros", count: tolls.length },
+    const items: {
+      key: TollView;
+      label: string;
+      icon: typeof Coins;
+      desc: string;
+      count: number;
+    }[] = [
+      {
+        key: "all",
+        label: "Todos os pedágios",
+        icon: Coins,
+        desc: "Ver todos os registros",
+        count: tolls.length,
+      },
     ];
     for (const tr of trucks) {
-      items.push({ key: tr.id, label: tr.name, icon: TruckIcon, desc: tr.plate, count: tolls.filter((t) => t.truckId === tr.id).length });
+      items.push({
+        key: tr.id,
+        label: tr.name,
+        icon: TruckIcon,
+        desc: tr.plate,
+        count: tolls.filter((t) => t.truckId === tr.id).length,
+      });
     }
-    items.push({ key: "unlinked", label: "Sem viagem", icon: Link2, desc: "Pedágios sem vínculo", count: tolls.filter((t) => !t.tripId).length });
+    items.push({
+      key: "unlinked",
+      label: "Sem viagem",
+      icon: Link2,
+      desc: "Pedágios sem vínculo",
+      count: tolls.filter((t) => !t.tripId).length,
+    });
     return items;
   }, [trucks, tolls]);
 
@@ -426,11 +527,21 @@ if (statusFilter === "pago" && !lockedIds.has(t.id)) return false;
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <div className="space-y-1.5">
                 <Label htmlFor="toll-date-from">De</Label>
-                <Input id="toll-date-from" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+                <Input
+                  id="toll-date-from"
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="toll-date-to">Até</Label>
-                <Input id="toll-date-to" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+                <Input
+                  id="toll-date-to"
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                />
               </div>
               <div className="space-y-1.5">
                 <Label>Motorista</Label>
@@ -453,7 +564,9 @@ if (statusFilter === "pago" && !lockedIds.has(t.id)) return false;
                 <Label>Status</Label>
                 <Select
                   value={statusFilter}
-                  onValueChange={(v) => setStatusFilter(v as "__all__" | "aberto" | "pago" | "arquivado")}
+                  onValueChange={(v) =>
+                    setStatusFilter(v as "__all__" | "aberto" | "pago" | "arquivado")
+                  }
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -492,7 +605,7 @@ if (statusFilter === "pago" && !lockedIds.has(t.id)) return false;
                 return (
                   <Card
                     key={t.id}
-                    className="flex flex-col overflow-hidden border-l-4 shadow-soft transition-all hover:shadow-md"
+                    className="flex flex-col overflow-hidden rounded-2xl border border-border/70 border-l-4 bg-card shadow-soft transition-all hover:-translate-y-0.5 hover:shadow-md"
                     style={{
                       borderLeftColor: t.semParar ? "rgb(245 158 11)" : "rgb(59 130 246)",
                     }}
@@ -507,7 +620,8 @@ if (statusFilter === "pago" && !lockedIds.has(t.id)) return false;
                           loading="lazy"
                           onError={(e) => {
                             e.currentTarget.style.display = "none";
-                            const fallback = e.currentTarget.nextElementSibling as HTMLElement | null;
+                            const fallback = e.currentTarget
+                              .nextElementSibling as HTMLElement | null;
                             if (fallback) fallback.hidden = false;
                           }}
                         />
@@ -535,12 +649,18 @@ if (statusFilter === "pago" && !lockedIds.has(t.id)) return false;
                           ) : (
                             <Badge variant="secondary">Normal</Badge>
                           )}
-                          <span className={cn("rounded-md px-2 py-0.5 text-xs font-medium", tone.bg, tone.text)}>
+                          <span
+                            className={cn(
+                              "rounded-md px-2 py-0.5 text-xs font-medium",
+                              tone.bg,
+                              tone.text,
+                            )}
+                          >
                             {RESP_LABEL[t.responsibility]}
                           </span>
                           {locked && (
                             <Badge variant="outline" className="border-amber-500 text-amber-600">
-                              <Lock className="mr-1 h-3 w-3" /> Recebimento
+                              <Lock className="mr-1 h-3 w-3" /> Em recebimento
                             </Badge>
                           )}
                         </div>
@@ -591,9 +711,11 @@ if (statusFilter === "pago" && !lockedIds.has(t.id)) return false;
                           )}
                         </div>
                         {t.notes && (
-                          <p className="whitespace-pre-wrap text-sm text-muted-foreground">{t.notes}</p>
+                          <p className="whitespace-pre-wrap text-sm text-muted-foreground">
+                            {t.notes}
+                          </p>
                         )}
-                        {suggestion && (
+                        {suggestion && !locked && (
                           <div className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
                             <Link2 className="h-3.5 w-3.5 text-primary" />
                             <span className="text-xs text-muted-foreground">Sugerida:</span>
@@ -623,7 +745,9 @@ if (statusFilter === "pago" && !lockedIds.has(t.id)) return false;
                       </div>
                       <div className="mt-auto flex items-center justify-between border-t border-border/60 pt-3">
                         <div>
-                          <p className="text-xs uppercase tracking-wide text-muted-foreground">Valor</p>
+                          <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                            Valor
+                          </p>
                           <p className="text-xl font-bold text-primary">{formatBRL(t.value)}</p>
                         </div>
                         <div className="flex items-center gap-1">
@@ -631,7 +755,9 @@ if (statusFilter === "pago" && !lockedIds.has(t.id)) return false;
                             variant="ghost"
                             size="icon"
                             disabled={locked}
+                            title={locked ? "Pedágio em recebimento" : "Editar"}
                             onClick={() => {
+                              if (locked) return;
                               setEditing(t);
                               setOpen(true);
                             }}
@@ -639,16 +765,20 @@ if (statusFilter === "pago" && !lockedIds.has(t.id)) return false;
                             <Pencil className="h-4 w-4" />
                           </Button>
                           {settings.editorMode && (
-  <Button
-  variant="ghost"
-  size="icon"
-  title={locked ? "Não é possível editar um pedágio em recebimento" : "Editar JSON"}
-  disabled={locked}
-  onClick={() => {
-  if (locked) return;
-  setJsonEditItem(t);
-  setJsonEditOpen(true);
-  }}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title={
+                                locked
+                                  ? "Não é possível editar um pedágio em recebimento"
+                                  : "Editar JSON"
+                              }
+                              disabled={locked}
+                              onClick={() => {
+                                if (locked) return;
+                                setJsonEditItem(t);
+                                setJsonEditOpen(true);
+                              }}
                             >
                               <Code2 className="h-4 w-4" />
                             </Button>
@@ -657,18 +787,26 @@ if (statusFilter === "pago" && !lockedIds.has(t.id)) return false;
                             variant="ghost"
                             size="icon"
                             disabled={locked}
-                            title={t.archived ? "Desarquivar" : "Arquivar"}
-                            onClick={() => {
-                              setTolls((prev) => prev.map((item) => item.id === t.id ? { ...item, archived: !item.archived } : item));
-                              toast.success(t.archived ? "Pedágio desarquivado" : "Pedágio arquivado");
-                            }}
+                            title={
+                              locked
+                                ? "Pedágio em recebimento"
+                                : t.archived
+                                  ? "Desarquivar"
+                                  : "Arquivar"
+                            }
+                            onClick={() => toggleArchive(t)}
                           >
-                            {t.archived ? <RotateCcw className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
+                            {t.archived ? (
+                              <RotateCcw className="h-4 w-4" />
+                            ) : (
+                              <Archive className="h-4 w-4" />
+                            )}
                           </Button>
                           <Button
                             variant="ghost"
                             size="icon"
                             disabled={locked}
+                            title={locked ? "Pedágio em recebimento" : "Excluir"}
                             onClick={() => remove(t.id)}
                           >
                             <Trash2 className="h-4 w-4 text-destructive" />
@@ -776,7 +914,6 @@ function TollDialog({ toll, onSaved }: { toll: Toll | null; onSaved: () => void 
   const [driverId, setDriverId] = useState(toll?.driverId ?? "");
   const [tripId, setTripId] = useState(toll?.tripId ?? "");
   const [value, setValue] = useState(toll ? String(toll.value) : "");
-  // Defaults: Sem Parar ON, Frigorífico ressarce
   const [semParar, setSemParar] = useState(toll?.semParar ?? true);
   const [responsibility, setResponsibility] = useState<ExpenseResponsibility>(
     toll?.responsibility ?? "ressarcir",
@@ -835,7 +972,7 @@ function TollDialog({ toll, onSaved }: { toll: Toll | null; onSaved: () => void 
   };
 
   return (
-    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+    <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
       <DialogHeader>
         <DialogTitle>{toll ? "Editar pedágio" : "Novo pedágio"}</DialogTitle>
         <DialogDescription>
@@ -868,9 +1005,14 @@ function TollDialog({ toll, onSaved }: { toll: Toll | null; onSaved: () => void 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <Label>Pedágio cadastrado</Label>
-            <Select value={tollLocationId || "__none__"} onValueChange={(v) => onLocChange(v === "__none__" ? "" : v)}>
+            <Select
+              value={tollLocationId || "__none__"}
+              onValueChange={(v) => onLocChange(v === "__none__" ? "" : v)}
+            >
               <SelectTrigger>
-                <SelectValue placeholder={tollLocations.length ? "Selecione..." : "Nenhum cadastrado"} />
+                <SelectValue
+                  placeholder={tollLocations.length ? "Selecione..." : "Nenhum cadastrado"}
+                />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none__">— Informar manualmente —</SelectItem>
