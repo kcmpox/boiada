@@ -433,6 +433,11 @@ function FuelingsPage() {
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="space-y-2">
                     <div className="flex flex-wrap items-center gap-2">
+                      {locked && (
+                        <Badge variant="outline" className="border-amber-500 text-amber-600">
+                          <Lock className="mr-1 h-3 w-3" /> Em recebimento
+                        </Badge>
+                      )}
                       <span className="flex items-center gap-1 text-xs text-muted-foreground">
                         <Calendar className="h-3 w-3" />
                         {formatDateBR(f.date)}
