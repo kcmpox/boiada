@@ -540,7 +540,7 @@ if (statusFilter === "pago" && !lockedIds.has(t.id)) return false;
                           </span>
                           {locked && (
                             <Badge variant="outline" className="border-amber-500 text-amber-600">
-                              <Lock className="mr-1 h-3 w-3" /> Recebimento
+                              <Lock className="mr-1 h-3 w-3" /> Em recebimento
                             </Badge>
                           )}
                         </div>
