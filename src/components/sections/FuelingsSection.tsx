@@ -442,9 +442,13 @@ function FuelingsPage() {
               prev != null && liters > 0 && f.odometer > prev ? (f.odometer - prev) / liters : null;
             const locked = lockedIds.has(f.id);
             return (
-              <Card key={f.id} className="p-5 shadow-soft">
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div className="space-y-2">
+              <Card key={f.id} className="overflow-hidden border-border/70 bg-card shadow-soft transition-shadow hover:shadow-md">
+                <div className="flex flex-col gap-5 p-5 sm:p-6">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-3 border-b border-border/60 pb-3">
+                      <p className="text-sm font-semibold text-foreground">Abastecimento</p>
+                      <span className="text-xs text-muted-foreground">ID: {source.id.slice(0, 8)}</span>
+                    </div>
                     <div className="flex flex-wrap items-center gap-2">
                       {locked && (
                         <Badge variant="outline" className="border-amber-500 text-amber-600">
@@ -530,7 +534,7 @@ function FuelingsPage() {
                     )}
                     <AttachmentsList items={f.attachments} />
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-4">
                     <div className="text-right">
                       <p className="text-xs uppercase tracking-wide text-muted-foreground">Total</p>
                       <p className="text-2xl font-bold text-primary">{formatBRL(total)}</p>

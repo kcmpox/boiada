@@ -492,7 +492,7 @@ if (statusFilter === "pago" && !lockedIds.has(t.id)) return false;
                 return (
                   <Card
                     key={t.id}
-                    className="flex flex-col overflow-hidden border-l-4 shadow-soft transition-all hover:shadow-md"
+                    className="flex flex-col overflow-hidden rounded-2xl border border-border/70 border-l-4 bg-card shadow-soft transition-all hover:-translate-y-0.5 hover:shadow-md"
                     style={{
                       borderLeftColor: t.semParar ? "rgb(245 158 11)" : "rgb(59 130 246)",
                     }}

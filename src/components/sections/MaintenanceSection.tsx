@@ -412,9 +412,13 @@ function ExpensesPage() {
                 const driver = drivers.find((x) => x.id === e.driverId);
                 const locked = lockedIds.has(e.id);
                 return (
-                  <Card key={e.id} className="p-5 shadow-soft">
-                    <div className="flex flex-wrap items-start justify-between gap-4">
-                      <div className="space-y-2">
+                  <Card key={e.id} className="overflow-hidden border-border/70 bg-card shadow-soft transition-shadow hover:shadow-md">
+                    <div className="flex flex-col gap-5 p-5 sm:p-6">
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between gap-3 border-b border-border/60 pb-3">
+                          <p className="text-sm font-semibold text-foreground">Manutenção</p>
+                          <span className="text-xs text-muted-foreground">ID: {e.id.slice(0, 8)}</span>
+                        </div>
                         <div className="flex flex-wrap items-center gap-2">
                           <Badge
                             variant={
@@ -461,7 +465,7 @@ function ExpensesPage() {
                         )}
                         <AttachmentsList items={e.attachments} />
                       </div>
-                      <div className="flex items-center gap-3">
+                      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-4">
                         <div className="text-right">
                           <p className="text-xs uppercase tracking-wide text-muted-foreground">
                             Valor
