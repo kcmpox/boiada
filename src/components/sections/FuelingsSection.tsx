@@ -333,29 +333,35 @@ function FuelingsPage() {
         <TruckNav items={navItems} value={truckFilter} onChange={(key) => { setTruckFilter(key); if (key === "__archived__") setStatusFilter("arquivado"); else setStatusFilter("__all__"); }} />
         <div className="space-y-6">
       <Card className="p-4 shadow-soft">
-        <div className="flex flex-wrap items-end gap-3">
-          <div>
-            <Label className="text-xs">De</Label>
-            <Input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              className="w-44"
-            />
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="fuel-date-from">De</Label>
+            <Input id="fuel-date-from" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
           </div>
-          <div>
-            <Label className="text-xs">Até</Label>
-            <Input
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              className="w-44"
-            />
+          <div className="space-y-1.5">
+            <Label htmlFor="fuel-date-to">Até</Label>
+            <Input id="fuel-date-to" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
           </div>
-          <div>
-            <Label className="text-xs">Motorista</Label>
+          <div className="space-y-1.5">
+            <Label>Caminhão</Label>
+            <Select value={truckFilter} onValueChange={setTruckFilter}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">Todos</SelectItem>
+                {trucks.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>
+                    {t.name} ({t.plate})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Motorista</Label>
             <Select value={driverFilter} onValueChange={setDriverFilter}>
-              <SelectTrigger className="w-52">
+              <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -364,34 +370,26 @@ function FuelingsPage() {
                 {drivers.map((d) => (
                   <SelectItem key={d.id} value={d.id}>
                     {d.name}
-                    {!d.active ? " ⚰️" : ""}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
-          {(dateFrom ||
-            dateTo ||
-            driverFilter !== "__all__" ||
-            truckFilter !== "__all__" ||
-            statusFilter !== "__all__") && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setDateFrom("");
-                setDateTo("");
-                setDriverFilter("__all__");
-                setTruckFilter("__all__");
-                setStatusFilter("__all__");
-              }}
+          <div className="space-y-1.5 sm:col-span-2 lg:col-span-4">
+            <Label>Status</Label>
+            <Select
+              value={statusFilter}
+              onValueChange={(v) => setStatusFilter(v as "__all__" | "aberto" | "pago" | "arquivado")}
             >
-              <X className="mr-1 h-3 w-3" /> Limpar
-            </Button>
-          )}
-          <div className="ml-auto text-right">
-            <p className="text-xs text-muted-foreground">{sorted.length} registro(s)</p>
-            <p className="text-lg font-bold text-primary">{formatBRL(totalValue)}</p>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">Todos</SelectItem>
+                <SelectItem value="aberto">Aberta</SelectItem>
+                <SelectItem value="pago">Recebido</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
       </Card>
@@ -534,14 +532,16 @@ function FuelingsPage() {
                       <Pencil className="h-4 w-4" />
                     </Button>
                     {settings.editorMode && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        title="Editar JSON"
-                        onClick={() => {
-                          setJsonEditItem(source);
-                          setJsonEditOpen(true);
-                        }}
+  <Button
+  variant="ghost"
+  size="icon"
+  title={locked ? "Não é possível editar um abastecimento em recebimento" : "Editar JSON"}
+  disabled={locked}
+  onClick={() => {
+  if (locked) return;
+  setJsonEditItem(source);
+  setJsonEditOpen(true);
+  }}
                       >
                         <Code2 className="h-4 w-4" />
                       </Button>

@@ -107,7 +107,7 @@ function ExpensesPage() {
           e.driverId !== driverFilter
         )
           return false;
-        if (truckFilter !== "__all__" && e.truckId !== truckFilter) return false;
+        if (truckFilter !== "__all__" && truckFilter !== "__archived__" && e.truckId !== truckFilter) return false;
         if (statusFilter === "aberto" && lockedIds.has(e.id)) return false;
         if (statusFilter === "pago" && !lockedIds.has(e.id)) return false;
         if (statusFilter === "arquivado" && !e.archived) return false;
@@ -151,6 +151,13 @@ function ExpensesPage() {
         count: expenses.filter((e) => e.truckId === tr.id).length,
       });
     }
+    items.push({
+      key: "__archived__",
+      label: "Arquivadas",
+      desc: "Manutenções arquivadas — visualizar",
+      icon: Archive,
+      count: expenses.filter((e) => e.archived).length,
+    });
     return items;
   }, [trucks, expenses]);
 
@@ -311,32 +318,45 @@ function ExpensesPage() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-[220px_1fr]">
-        <TruckNav items={navItems} value={truckFilter} onChange={setTruckFilter} />
+        <TruckNav
+          items={navItems}
+          value={truckFilter}
+          onChange={(key) => {
+            setTruckFilter(key);
+            setStatusFilter(key === "__archived__" ? "arquivado" : "__all__");
+          }}
+        />
         <div className="space-y-6">
           <Card className="p-4 shadow-soft">
-            <div className="flex flex-wrap items-end gap-3">
-              <div>
-                <Label className="text-xs">De</Label>
-                <Input
-                  type="date"
-                  value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
-                  className="w-44"
-                />
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="expense-date-from">De</Label>
+                <Input id="expense-date-from" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
               </div>
-              <div>
-                <Label className="text-xs">Até</Label>
-                <Input
-                  type="date"
-                  value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
-                  className="w-44"
-                />
+              <div className="space-y-1.5">
+                <Label htmlFor="expense-date-to">Até</Label>
+                <Input id="expense-date-to" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
               </div>
-              <div>
-                <Label className="text-xs">Motorista</Label>
+              <div className="space-y-1.5">
+                <Label>Caminhão</Label>
+                <Select value={truckFilter} onValueChange={setTruckFilter}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Todos</SelectItem>
+                    {trucks.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.name} ({t.plate})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Motorista</Label>
                 <Select value={driverFilter} onValueChange={setDriverFilter}>
-                  <SelectTrigger className="w-52">
+                  <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -345,77 +365,26 @@ function ExpensesPage() {
                     {drivers.map((d) => (
                       <SelectItem key={d.id} value={d.id}>
                         {d.name}
-                        {!d.active ? " ⚰️" : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <Label className="text-xs">Status</Label>
+              <div className="space-y-1.5 sm:col-span-2 lg:col-span-4">
+                <Label>Status</Label>
                 <Select
-                  value={statusFilter === "arquivado" ? "__all__" : statusFilter}
-                  onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}
+                  value={statusFilter}
+                  onValueChange={(v) => setStatusFilter(v as "__all__" | "aberto" | "pago" | "arquivado")}
                 >
-                  <SelectTrigger className="w-40">
+                  <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__all__">Todos</SelectItem>
-                    <SelectItem value="aberto">Em aberto</SelectItem>
-  <SelectItem value="pago">Recebidos</SelectItem>
-  </SelectContent>
+                    <SelectItem value="aberto">Aberta</SelectItem>
+                    <SelectItem value="pago">Recebido</SelectItem>
+                  </SelectContent>
                 </Select>
-              </div>
-              {(dateFrom ||
-                dateTo ||
-                driverFilter !== "__all__" ||
-                truckFilter !== "__all__" ||
-                statusFilter !== "__all__") && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setDateFrom("");
-                    setDateTo("");
-                    setDriverFilter("__all__");
-                    setTruckFilter("__all__");
-                    setStatusFilter("__all__");
-                  }}
-                >
-                  <X className="mr-1 h-3 w-3" /> Limpar
-                </Button>
-              )}
-              <button
-                type="button"
-                onClick={() => setStatusFilter(statusFilter === "arquivado" ? "__all__" : "arquivado")}
-                className={cn(
-                  "group flex min-w-[140px] items-center gap-3 rounded-xl border px-3.5 py-3 text-left transition-all md:min-w-0",
-                  statusFilter === "arquivado"
-                    ? "border-primary/30 bg-primary/5 shadow-sm"
-                    : "border-transparent hover:border-border hover:bg-muted/50",
-                )}
-              >
-                <span
-                  className={cn(
-                    "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors",
-                    statusFilter === "arquivado"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-muted-foreground group-hover:bg-muted-foreground/15",
-                  )}
-                >
-                  <Archive className="h-4 w-4" />
-                </span>
-                <div className="min-w-0">
-                  <div className="font-medium leading-tight">Arquivadas</div>
-                  <div className="truncate text-xs text-muted-foreground">
-                    Manutenções arquivadas — {statusFilter === "arquivado" ? "voltar" : "visualizar"}
-                  </div>
-                </div>
-              </button>
-              <div className="ml-auto text-right">
-                <p className="text-xs text-muted-foreground">{sorted.length} registro(s)</p>
-                <p className="text-lg font-bold text-primary">{formatBRL(totalValue)}</p>
               </div>
             </div>
           </Card>

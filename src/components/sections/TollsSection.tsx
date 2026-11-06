@@ -318,32 +318,40 @@ if (statusFilter === "pago" && !lockedIds.has(t.id)) return false;
   const activeNav = navItems.find((n) => n.key === view) ?? navItems[0];
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        <Button variant="outline" onClick={generatePDF}>
-          <FileDown className="mr-1.5 h-4 w-4" /> Gerar PDF
-        </Button>
-        <Dialog
-          open={open}
-          onOpenChange={(v) => {
-            setOpen(v);
-            if (!v) setEditing(null);
-          }}
-        >
-          <DialogTrigger asChild>
-            <Button onClick={() => setEditing(null)}>
-              <Plus className="mr-1.5 h-4 w-4" /> Novo pedágio
-            </Button>
-          </DialogTrigger>
-          <TollDialog
-            key={editing?.id ?? "new"}
-            toll={editing}
-            onSaved={() => {
-              setOpen(false);
-              setEditing(null);
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-3xl font-bold">Pedágios</h2>
+          <p className="text-muted-foreground">
+            Registre pagamentos de pedágios e vincule-os às viagens.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="lg" onClick={generatePDF}>
+            <FileDown className="mr-1 h-4 w-4" /> Gerar PDF
+          </Button>
+          <Dialog
+            open={open}
+            onOpenChange={(v) => {
+              setOpen(v);
+              if (!v) setEditing(null);
             }}
-          />
-        </Dialog>
+          >
+            <DialogTrigger asChild>
+              <Button size="lg" onClick={() => setEditing(null)}>
+                <Plus className="mr-1 h-4 w-4" /> Novo pedágio
+              </Button>
+            </DialogTrigger>
+            <TollDialog
+              key={editing?.id ?? "new"}
+              toll={editing}
+              onSaved={() => {
+                setOpen(false);
+                setEditing(null);
+              }}
+            />
+          </Dialog>
+        </div>
       </div>
 
       <div className="grid gap-6 md:grid-cols-[220px_1fr]">
@@ -415,19 +423,19 @@ if (statusFilter === "pago" && !lockedIds.has(t.id)) return false;
           )}
 
           <Card className="p-4 shadow-soft">
-            <div className="flex flex-wrap items-end gap-3">
-              <div>
-                <Label className="text-xs">De</Label>
-                <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-40" />
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="toll-date-from">De</Label>
+                <Input id="toll-date-from" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
               </div>
-              <div>
-                <Label className="text-xs">Até</Label>
-                <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-40" />
+              <div className="space-y-1.5">
+                <Label htmlFor="toll-date-to">Até</Label>
+                <Input id="toll-date-to" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
               </div>
-              <div>
-                <Label className="text-xs">Motorista</Label>
+              <div className="space-y-1.5">
+                <Label>Motorista</Label>
                 <Select value={driverFilter} onValueChange={setDriverFilter}>
-                  <SelectTrigger className="w-48">
+                  <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -436,72 +444,26 @@ if (statusFilter === "pago" && !lockedIds.has(t.id)) return false;
                     {drivers.map((d) => (
                       <SelectItem key={d.id} value={d.id}>
                         {d.name}
-                        {!d.active ? " ⚰️" : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <Label className="text-xs">Status</Label>
+              <div className="space-y-1.5 sm:col-span-2 lg:col-span-3">
+                <Label>Status</Label>
                 <Select
-                  value={statusFilter === "arquivado" ? "__all__" : statusFilter}
-                  onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}
+                  value={statusFilter}
+                  onValueChange={(v) => setStatusFilter(v as "__all__" | "aberto" | "pago" | "arquivado")}
                 >
-                  <SelectTrigger className="w-36">
+                  <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__all__">Todos</SelectItem>
-                    <SelectItem value="aberto">Em aberto</SelectItem>
-  <SelectItem value="pago">Recebidos</SelectItem>
-  </SelectContent>
+                    <SelectItem value="aberto">Aberta</SelectItem>
+                    <SelectItem value="pago">Recebido</SelectItem>
+                  </SelectContent>
                 </Select>
-              </div>
-              {(dateFrom || dateTo || driverFilter !== "__all__" || statusFilter !== "__all__") && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setDateFrom("");
-                    setDateTo("");
-                    setDriverFilter("__all__");
-                    setStatusFilter("__all__");
-                  }}
-                >
-                  <X className="mr-1 h-3 w-3" /> Limpar
-                </Button>
-              )}
-              <button
-                type="button"
-                onClick={() => setStatusFilter(statusFilter === "arquivado" ? "__all__" : "arquivado")}
-                className={cn(
-                  "group flex min-w-[140px] items-center gap-3 rounded-xl border px-3.5 py-3 text-left transition-all md:min-w-0",
-                  statusFilter === "arquivado"
-                    ? "border-primary/30 bg-primary/5 shadow-sm"
-                    : "border-transparent hover:border-border hover:bg-muted/50",
-                )}
-              >
-                <span
-                  className={cn(
-                    "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors",
-                    statusFilter === "arquivado"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-muted-foreground group-hover:bg-muted-foreground/15",
-                  )}
-                >
-                  <Archive className="h-4 w-4" />
-                </span>
-                <div className="min-w-0">
-                  <div className="font-medium leading-tight">Arquivados</div>
-                  <div className="truncate text-xs text-muted-foreground">
-                    Pedágios arquivados — {statusFilter === "arquivado" ? "voltar" : "visualizar"}
-                  </div>
-                </div>
-              </button>
-              <div className="ml-auto text-right">
-                <p className="text-xs text-muted-foreground">{sorted.length} registro(s)</p>
-                <p className="text-lg font-bold text-primary">{formatBRL(totalValue)}</p>
               </div>
             </div>
           </Card>
@@ -677,14 +639,16 @@ if (statusFilter === "pago" && !lockedIds.has(t.id)) return false;
                             <Pencil className="h-4 w-4" />
                           </Button>
                           {settings.editorMode && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              title="Editar JSON"
-                              onClick={() => {
-                                setJsonEditItem(t);
-                                setJsonEditOpen(true);
-                              }}
+  <Button
+  variant="ghost"
+  size="icon"
+  title={locked ? "Não é possível editar um pedágio em recebimento" : "Editar JSON"}
+  disabled={locked}
+  onClick={() => {
+  if (locked) return;
+  setJsonEditItem(t);
+  setJsonEditOpen(true);
+  }}
                             >
                               <Code2 className="h-4 w-4" />
                             </Button>
