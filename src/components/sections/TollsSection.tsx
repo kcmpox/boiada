@@ -5,6 +5,7 @@ import {
   useTrucks,
   useDrivers,
   usePayments,
+  paymentContainsCardId,
   useActiveTrips,
   useSettings,
   uid,
@@ -115,7 +116,10 @@ export function TollsSection() {
   const [drivers] = useDrivers();
   const [payments] = usePayments();
   const [trips] = useActiveTrips();
-  const lockedIds = useMemo(() => new Set(payments.flatMap((p) => p.tollIds)), [payments]);
+  const lockedIds = useMemo(
+    () => new Set(tolls.filter((toll) => payments.some((payment) => paymentContainsCardId(payment, toll.id))).map((toll) => toll.id)),
+    [tolls, payments],
+  );
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Toll | null>(null);
   const [settings] = useSettings();

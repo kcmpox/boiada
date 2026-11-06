@@ -5,6 +5,7 @@ import {
   useTrucks,
   useDrivers,
   usePayments,
+  paymentContainsCardId,
   useSettings,
   uid,
   formatBRL,
@@ -81,7 +82,10 @@ function ExpensesPage() {
   const [trucks] = useTrucks();
   const [drivers] = useDrivers();
   const [payments] = usePayments();
-  const lockedIds = useMemo(() => new Set(payments.flatMap((p) => p.expenseIds ?? [])), [payments]);
+  const lockedIds = useMemo(
+    () => new Set(expenses.filter((expense) => payments.some((payment) => paymentContainsCardId(payment, expense.id))).map((expense) => expense.id)),
+    [expenses, payments],
+  );
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Expense | null>(null);
   const [settings] = useSettings();
