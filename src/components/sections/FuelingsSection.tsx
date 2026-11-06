@@ -333,67 +333,7 @@ function FuelingsPage() {
         <TruckNav items={navItems} value={truckFilter} onChange={(key) => { setTruckFilter(key); if (key === "__archived__") setStatusFilter("arquivado"); else setStatusFilter("__all__"); }} />
         <div className="space-y-6">
       <Card className="p-4 shadow-soft">
-        <div className="flex flex-wrap items-end gap-3">
-          <div>
-            <Label className="text-xs">De</Label>
-            <Input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              className="w-44"
-            />
-          </div>
-          <div>
-            <Label className="text-xs">Até</Label>
-            <Input
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              className="w-44"
-            />
-          </div>
-          <div>
-            <Label className="text-xs">Motorista</Label>
-            <Select value={driverFilter} onValueChange={setDriverFilter}>
-              <SelectTrigger className="w-52">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">Todos</SelectItem>
-                <SelectItem value="__none__">Sem motorista</SelectItem>
-                {drivers.map((d) => (
-                  <SelectItem key={d.id} value={d.id}>
-                    {d.name}
-                    {!d.active ? " ⚰️" : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          {(dateFrom ||
-            dateTo ||
-            driverFilter !== "__all__" ||
-            truckFilter !== "__all__" ||
-            statusFilter !== "__all__") && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setDateFrom("");
-                setDateTo("");
-                setDriverFilter("__all__");
-                setTruckFilter("__all__");
-                setStatusFilter("__all__");
-              }}
-            >
-              <X className="mr-1 h-3 w-3" /> Limpar
-            </Button>
-          )}
-          <div className="ml-auto text-right">
-            <p className="text-xs text-muted-foreground">{sorted.length} registro(s)</p>
-            <p className="text-lg font-bold text-primary">{formatBRL(totalValue)}</p>
-          </div>
-        </div>
+        <p className="text-sm text-muted-foreground">filtros em construção</p>
       </Card>
 
       {trucks.length === 0 && (
