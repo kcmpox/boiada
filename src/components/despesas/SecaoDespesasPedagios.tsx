@@ -1,21 +1,196 @@
-import { HardHat } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Milestone, Archive, AlertCircle, Truck } from 'lucide-react';
+import * as cadastrosStorage from '../../storage/cadastrosStorage';
+import { TodosPedagios } from './pedagios/TodosPedagios';
+import { PedagiosArquivados } from './pedagios/PedagiosArquivados';
+import { PedagiosSemViagem } from './pedagios/PedagiosSemViagem';
+import { PedagiosCaminhao } from './pedagios/PedagiosCaminhao';
+
+interface CaminhaoItem {
+  id: string | number;
+  nome?: string;
+  apelido?: string;
+  placa?: string;
+  ativo?: boolean;
+  status?: string;
+}
+
+type SecaoPedagiosAtiva =
+  | { tipo: 'todos' }
+  | { tipo: 'arquivadas' }
+  | { tipo: 'sem-viagem' }
+  | { tipo: 'caminhao'; caminhaoId: string };
+
+function isCaminhao(item: unknown): item is CaminhaoItem {
+  return (
+    typeof item === 'object' &&
+    item !== null &&
+    'id' in item &&
+    ('placa' in item || 'apelido' in item || 'nome' in item)
+  );
+}
+
+function lerCaminhoes(): CaminhaoItem[] {
+  const storage = cadastrosStorage as Record<string, unknown>;
+
+  for (const valor of Object.values(storage)) {
+    if (typeof valor === 'function' && valor.length === 0) {
+      try {
+        const res = valor();
+        if (Array.isArray(res) && (res.length === 0 || isCaminhao(res[0]))) {
+          if (res.length > 0 && 'placa' in res[0]) return res;
+        }
+        if (res && typeof res === 'object' && 'caminhoes' in res) {
+          const lista = (res as { caminhoes?: unknown }).caminhoes;
+          if (Array.isArray(lista)) return lista as CaminhaoItem[];
+        }
+      } catch {
+        // Ignora funções que exigem argumentos
+      }
+    }
+  }
+
+  for (let i = 0; i < localStorage.length; i++) {
+    const chave = localStorage.key(i);
+    if (!chave) continue;
+    try {
+      const parsed = JSON.parse(localStorage.getItem(chave) || '');
+      if (Array.isArray(parsed) && parsed.length > 0 && 'placa' in parsed[0]) {
+        return parsed;
+      }
+      if (parsed && typeof parsed === 'object' && Array.isArray(parsed.caminhoes)) {
+        return parsed.caminhoes;
+      }
+    } catch {
+      // Ignora chaves que não são JSON
+    }
+  }
+
+  return [];
+}
 
 export function SecaoDespesasPedagios() {
+  const [secao, setSecao] = useState<SecaoPedagiosAtiva>({ tipo: 'todos' });
+  const [caminhoes, setCaminhoes] = useState<CaminhaoItem[]>([]);
+
+  useEffect(() => {
+    const carregar = () => {
+      const todos = lerCaminhoes();
+      const ativos = todos.filter(
+        (c) => c.ativo !== false && c.status !== 'inativo'
+      );
+      setCaminhoes(ativos);
+    };
+
+    carregar();
+    window.addEventListener('storage', carregar);
+    return () => window.removeEventListener('storage', carregar);
+  }, []);
+
+  const caminhaoSelecionado =
+    secao.tipo === 'caminhao'
+      ? caminhoes.find((c) => String(c.id) === secao.caminhaoId)
+      : undefined;
+
+  const getItemClass = (ativo: boolean) =>
+    `w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-left transition-all cursor-pointer ${
+      ativo
+        ? 'bg-brand-50 dark:bg-brand-500/10 text-brand-600 dark:text-brand-400 border border-brand-500/20 font-semibold'
+        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100/70 dark:hover:bg-slate-800/60 border border-transparent'
+    }`;
+
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 p-12 flex flex-col items-center justify-center text-center">
-      <div className="w-12 h-12 rounded-2xl bg-brand-50 dark:bg-brand-500/10 border border-brand-500/20 flex items-center justify-center text-brand-600 dark:text-brand-400 mb-4">
-        <HardHat className="w-6 h-6" />
+    <div className="flex flex-col lg:flex-row gap-6 items-start">
+      {/* Menu Lateral da Seção Pedágios */}
+      <aside className="w-full lg:w-64 shrink-0 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/50 p-3 flex flex-col gap-5">
+        <div>
+          <span className="px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+            Geral
+          </span>
+          <nav className="mt-2 flex flex-col gap-1">
+            <button
+              type="button"
+              onClick={() => setSecao({ tipo: 'todos' })}
+              className={getItemClass(secao.tipo === 'todos')}
+            >
+              <Milestone className="w-4 h-4 shrink-0" />
+              <span className="truncate">Todos os pedágios</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setSecao({ tipo: 'arquivadas' })}
+              className={getItemClass(secao.tipo === 'arquivadas')}
+            >
+              <Archive className="w-4 h-4 shrink-0" />
+              <span className="truncate">Arquivadas</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setSecao({ tipo: 'sem-viagem' })}
+              className={getItemClass(secao.tipo === 'sem-viagem')}
+            >
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span className="truncate">Sem viagem</span>
+            </button>
+          </nav>
+        </div>
+
+        <div>
+          <span className="px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+            Por Caminhão ({caminhoes.length})
+          </span>
+          <nav className="mt-2 flex flex-col gap-1">
+            {caminhoes.length === 0 ? (
+              <span className="px-3 py-2 text-xs text-slate-500">
+                Nenhum caminhão cadastrado
+              </span>
+            ) : (
+              caminhoes.map((caminhao, index) => {
+                const idStr = String(caminhao.id);
+                const ativo =
+                  secao.tipo === 'caminhao' && secao.caminhaoId === idStr;
+                const rotulo =
+                  caminhao.nome ||
+                  caminhao.apelido ||
+                  `Caminhão Cadastrado ${index + 1}`;
+
+                return (
+                  <button
+                    key={idStr}
+                    type="button"
+                    onClick={() =>
+                      setSecao({ tipo: 'caminhao', caminhaoId: idStr })
+                    }
+                    className={getItemClass(ativo)}
+                  >
+                    <Truck className="w-4 h-4 shrink-0" />
+                    <span className="truncate">
+                      {rotulo}
+                      {caminhao.placa ? ` (${caminhao.placa})` : ''}
+                    </span>
+                  </button>
+                );
+              })
+            )}
+          </nav>
+        </div>
+      </aside>
+
+      {/* Área de Conteúdo da Subseção */}
+      <div className="flex-1 w-full min-w-0">
+        {secao.tipo === 'todos' && <TodosPedagios />}
+        {secao.tipo === 'arquivadas' && <PedagiosArquivados />}
+        {secao.tipo === 'sem-viagem' && <PedagiosSemViagem />}
+        {secao.tipo === 'caminhao' && (
+          <PedagiosCaminhao
+            caminhaoId={secao.caminhaoId}
+            nome={caminhaoSelecionado?.nome || caminhaoSelecionado?.apelido}
+            placa={caminhaoSelecionado?.placa}
+          />
+        )}
       </div>
-      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-brand-100 dark:bg-brand-500/20 text-brand-800 dark:text-brand-400 mb-3">
-        <span className="w-1.5 h-1.5 rounded-full bg-brand-500 animate-pulse" />
-        Em Construção
-      </span>
-      <h3 className="text-base font-semibold text-slate-900 dark:text-white">
-        Seção de Pedágios em desenvolvimento
-      </h3>
-      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5 max-w-md leading-relaxed">
-        Acompanhe os gastos com praças de pedágio, tags de passagem e reembolsos por viagem.
-      </p>
     </div>
   );
 }
