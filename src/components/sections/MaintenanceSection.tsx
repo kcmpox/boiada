@@ -15,6 +15,7 @@ import {
   type Expense,
   type ExpenseResponsibility,
   type Attachment,
+  type Payment,
 } from "@/lib/storage";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -45,7 +46,6 @@ import {
   Calendar,
   Truck as TruckIcon,
   FileDown,
-  X,
   Wrench,
   User as UserIcon,
   Lock,
@@ -54,7 +54,6 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
 import { AttachmentsField, AttachmentsList } from "@/components/Attachments";
 import { Pagination, PAGE_SIZE } from "@/components/Pagination";
 import { JsonEditorDialog } from "@/components/JsonEditorDialog";
@@ -71,6 +70,24 @@ import {
 
 export { ExpensesPage as MaintenanceSection };
 
+function isExpenseLocked(payment: Payment, expenseId: string): boolean {
+  if (typeof paymentContainsCardId === "function" && paymentContainsCardId(payment, expenseId)) {
+    return true;
+  }
+  const baseId = expenseId.split("::")[0].split(":")[0];
+  if (payment.expenseIds?.includes(baseId)) return true;
+  if (payment.reimbursementIds?.includes(baseId)) return true;
+  if (payment.deductionIds?.includes(baseId)) return true;
+  if (payment.receivedByItem) {
+    for (const key of Object.keys(payment.receivedByItem)) {
+      if (key === baseId || key.startsWith(`${baseId}:`)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 const RESP_LABEL: Record<ExpenseResponsibility, string> = {
   minha: "Minha despesa",
   desconto: "Frigorífico desconta",
@@ -82,10 +99,17 @@ function ExpensesPage() {
   const [trucks] = useTrucks();
   const [drivers] = useDrivers();
   const [payments] = usePayments();
+
   const lockedIds = useMemo(
-    () => new Set(expenses.filter((expense) => payments.some((payment) => paymentContainsCardId(payment, expense.id))).map((expense) => expense.id)),
+    () =>
+      new Set(
+        expenses
+          .filter((expense) => payments.some((payment) => isExpenseLocked(payment, expense.id)))
+          .map((expense) => expense.id),
+      ),
     [expenses, payments],
   );
+
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Expense | null>(null);
   const [settings] = useSettings();
@@ -111,7 +135,12 @@ function ExpensesPage() {
           e.driverId !== driverFilter
         )
           return false;
-        if (truckFilter !== "__all__" && truckFilter !== "__archived__" && e.truckId !== truckFilter) return false;
+        if (
+          truckFilter !== "__all__" &&
+          truckFilter !== "__archived__" &&
+          e.truckId !== truckFilter
+        )
+          return false;
         if (statusFilter === "aberto" && lockedIds.has(e.id)) return false;
         if (statusFilter === "pago" && !lockedIds.has(e.id)) return false;
         if (statusFilter === "arquivado" && !e.archived) return false;
@@ -125,13 +154,13 @@ function ExpensesPage() {
     () => [...filtered].sort((a, b) => b.date.localeCompare(a.date)),
     [filtered],
   );
-  const totalValue = useMemo(() => sorted.reduce((s, e) => s + e.value, 0), [sorted]);
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const paged = useMemo(
     () => sorted.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
     [sorted, safePage],
   );
+
   useEffect(() => {
     setPage(1);
   }, [dateFrom, dateTo, driverFilter, truckFilter, statusFilter]);
@@ -172,6 +201,17 @@ function ExpensesPage() {
     }
     setExpenses((prev) => prev.filter((e) => e.id !== id));
     toast.success("Despesa removida");
+  };
+
+  const toggleArchive = (e: Expense) => {
+    if (lockedIds.has(e.id)) {
+      toast.error("Manutenção está em um recebimento. Exclua o recebimento antes de arquivar.");
+      return;
+    }
+    setExpenses((prev) =>
+      prev.map((item) => (item.id === e.id ? { ...item, archived: !item.archived } : item)),
+    );
+    toast.success(e.archived ? "Manutenção desarquivada" : "Manutenção arquivada");
   };
 
   const generatePDF = async () => {
@@ -335,11 +375,21 @@ function ExpensesPage() {
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <div className="space-y-1.5">
                 <Label htmlFor="expense-date-from">De</Label>
-                <Input id="expense-date-from" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+                <Input
+                  id="expense-date-from"
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="expense-date-to">Até</Label>
-                <Input id="expense-date-to" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+                <Input
+                  id="expense-date-to"
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                />
               </div>
               <div className="space-y-1.5">
                 <Label>Caminhão</Label>
@@ -378,7 +428,9 @@ function ExpensesPage() {
                 <Label>Status</Label>
                 <Select
                   value={statusFilter}
-                  onValueChange={(v) => setStatusFilter(v as "__all__" | "aberto" | "pago" | "arquivado")}
+                  onValueChange={(v) =>
+                    setStatusFilter(v as "__all__" | "aberto" | "pago" | "arquivado")
+                  }
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -416,12 +468,17 @@ function ExpensesPage() {
                 const driver = drivers.find((x) => x.id === e.driverId);
                 const locked = lockedIds.has(e.id);
                 return (
-                  <Card key={e.id} className="overflow-hidden border-border/70 bg-card shadow-soft transition-shadow hover:shadow-md">
+                  <Card
+                    key={e.id}
+                    className="overflow-hidden border-border/70 bg-card shadow-soft transition-shadow hover:shadow-md"
+                  >
                     <div className="flex flex-col gap-5 p-5 sm:p-6">
                       <div className="space-y-3">
                         <div className="flex items-center justify-between gap-3 border-b border-border/60 pb-3">
                           <p className="text-sm font-semibold text-foreground">Manutenção</p>
-                          <span className="text-xs text-muted-foreground">ID: {e.id.slice(0, 8)}</span>
+                          <span className="text-xs text-muted-foreground">
+                            ID: {e.id.slice(0, 8)}
+                          </span>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
                           <Badge
@@ -446,7 +503,7 @@ function ExpensesPage() {
                           </span>
                           <span className="flex items-center gap-1 text-xs text-muted-foreground">
                             <TruckIcon className="h-3 w-3" />
-                            {truck?.name ?? "��"} ({truck?.plate ?? "—"})
+                            {truck?.name ?? "—"} ({truck?.plate ?? "—"})
                           </span>
                           {driver && (
                             <span className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -476,50 +533,68 @@ function ExpensesPage() {
                           </p>
                           <p className="text-2xl font-bold text-primary">{formatBRL(e.value)}</p>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          disabled={locked}
-                          onClick={() => {
-                            setEditing(e);
-                            setOpen(true);
-                          }}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        {settings.editorMode && (
+                        <div className="flex items-center gap-1">
                           <Button
                             variant="ghost"
                             size="icon"
-                            title="Editar JSON"
+                            disabled={locked}
+                            title={locked ? "Manutenção em recebimento" : "Editar"}
                             onClick={() => {
-                              setJsonEditItem(e);
-                              setJsonEditOpen(true);
+                              if (locked) return;
+                              setEditing(e);
+                              setOpen(true);
                             }}
                           >
-                            <Code2 className="h-4 w-4" />
+                            <Pencil className="h-4 w-4" />
                           </Button>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          disabled={locked}
-                          title={e.archived ? "Desarquivar" : "Arquivar"}
-                          onClick={() => {
-                            setExpenses((prev) => prev.map((item) => item.id === e.id ? { ...item, archived: !item.archived } : item));
-                            toast.success(e.archived ? "Manutenção desarquivada" : "Manutenção arquivada");
-                          }}
-                        >
-                          {e.archived ? <RotateCcw className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          disabled={locked}
-                          onClick={() => remove(e.id)}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
+                          {settings.editorMode && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              disabled={locked}
+                              title={
+                                locked
+                                  ? "Não é possível editar uma manutenção em recebimento"
+                                  : "Editar JSON"
+                              }
+                              onClick={() => {
+                                if (locked) return;
+                                setJsonEditItem(e);
+                                setJsonEditOpen(true);
+                              }}
+                            >
+                              <Code2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            disabled={locked}
+                            title={
+                              locked
+                                ? "Manutenção em recebimento"
+                                : e.archived
+                                  ? "Desarquivar"
+                                  : "Arquivar"
+                            }
+                            onClick={() => toggleArchive(e)}
+                          >
+                            {e.archived ? (
+                              <RotateCcw className="h-4 w-4" />
+                            ) : (
+                              <Archive className="h-4 w-4" />
+                            )}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            disabled={locked}
+                            title={locked ? "Manutenção em recebimento" : "Excluir"}
+                            onClick={() => remove(e.id)}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   </Card>
@@ -605,7 +680,7 @@ function ExpenseDialog({ expense, onSaved }: { expense: Expense | null; onSaved:
   };
 
   return (
-    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+    <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
       <DialogHeader>
         <DialogTitle>{expense ? "Editar despesa" : "Nova despesa"}</DialogTitle>
       </DialogHeader>
