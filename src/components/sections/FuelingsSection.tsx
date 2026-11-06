@@ -95,7 +95,20 @@ function FuelingsPage() {
   const [allTrips, setTrips] = useTrips();
   const [drivers] = useDrivers();
   const [payments] = usePayments();
-  const lockedIds = useMemo(() => new Set(payments.flatMap((p) => p.fuelingIds)), [payments]);
+  const lockedIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const payment of payments) {
+      for (const id of payment.fuelingIds ?? []) ids.add(id);
+      for (const itemId of payment.fuelingItemIds ?? []) {
+        ids.add(itemId.split(":")[0]);
+      }
+      const tripIds = new Set(payment.tripIds ?? []);
+      for (const fueling of fuelings) {
+        if (fueling.tripId && tripIds.has(fueling.tripId)) ids.add(fueling.id);
+      }
+    }
+    return ids;
+  }, [payments, fuelings]);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Fueling | null>(null);
   const [settings] = useSettings();
