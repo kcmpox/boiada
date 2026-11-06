@@ -318,32 +318,40 @@ if (statusFilter === "pago" && !lockedIds.has(t.id)) return false;
   const activeNav = navItems.find((n) => n.key === view) ?? navItems[0];
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        <Button variant="outline" onClick={generatePDF}>
-          <FileDown className="mr-1.5 h-4 w-4" /> Gerar PDF
-        </Button>
-        <Dialog
-          open={open}
-          onOpenChange={(v) => {
-            setOpen(v);
-            if (!v) setEditing(null);
-          }}
-        >
-          <DialogTrigger asChild>
-            <Button onClick={() => setEditing(null)}>
-              <Plus className="mr-1.5 h-4 w-4" /> Novo pedágio
-            </Button>
-          </DialogTrigger>
-          <TollDialog
-            key={editing?.id ?? "new"}
-            toll={editing}
-            onSaved={() => {
-              setOpen(false);
-              setEditing(null);
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-3xl font-bold">Pedágios</h2>
+          <p className="text-muted-foreground">
+            Registre pagamentos de pedágios e vincule-os às viagens.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="lg" onClick={generatePDF}>
+            <FileDown className="mr-1 h-4 w-4" /> Gerar PDF
+          </Button>
+          <Dialog
+            open={open}
+            onOpenChange={(v) => {
+              setOpen(v);
+              if (!v) setEditing(null);
             }}
-          />
-        </Dialog>
+          >
+            <DialogTrigger asChild>
+              <Button size="lg" onClick={() => setEditing(null)}>
+                <Plus className="mr-1 h-4 w-4" /> Novo pedágio
+              </Button>
+            </DialogTrigger>
+            <TollDialog
+              key={editing?.id ?? "new"}
+              toll={editing}
+              onSaved={() => {
+                setOpen(false);
+                setEditing(null);
+              }}
+            />
+          </Dialog>
+        </div>
       </div>
 
       <div className="grid gap-6 md:grid-cols-[220px_1fr]">
