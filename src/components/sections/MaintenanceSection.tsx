@@ -107,7 +107,7 @@ function ExpensesPage() {
           e.driverId !== driverFilter
         )
           return false;
-        if (truckFilter !== "__all__" && e.truckId !== truckFilter) return false;
+        if (truckFilter !== "__all__" && truckFilter !== "__archived__" && e.truckId !== truckFilter) return false;
         if (statusFilter === "aberto" && lockedIds.has(e.id)) return false;
         if (statusFilter === "pago" && !lockedIds.has(e.id)) return false;
         if (statusFilter === "arquivado" && !e.archived) return false;
@@ -151,6 +151,13 @@ function ExpensesPage() {
         count: expenses.filter((e) => e.truckId === tr.id).length,
       });
     }
+    items.push({
+      key: "__archived__",
+      label: "Arquivadas",
+      desc: "Manutenções arquivadas — visualizar",
+      icon: Archive,
+      count: expenses.filter((e) => e.archived).length,
+    });
     return items;
   }, [trucks, expenses]);
 
@@ -311,7 +318,14 @@ function ExpensesPage() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-[220px_1fr]">
-        <TruckNav items={navItems} value={truckFilter} onChange={setTruckFilter} />
+        <TruckNav
+          items={navItems}
+          value={truckFilter}
+          onChange={(key) => {
+            setTruckFilter(key);
+            setStatusFilter(key === "__archived__" ? "arquivado" : "__all__");
+          }}
+        />
         <div className="space-y-6">
           <Card className="p-4 shadow-soft">
             <div className="flex flex-wrap items-end gap-3">
