@@ -328,7 +328,65 @@ function ExpensesPage() {
         />
         <div className="space-y-6">
           <Card className="p-4 shadow-soft">
-            <p className="text-sm text-muted-foreground">filtros em construção</p>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="expense-date-from">De</Label>
+                <Input id="expense-date-from" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="expense-date-to">Até</Label>
+                <Input id="expense-date-to" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Caminhão</Label>
+                <Select value={truckFilter} onValueChange={setTruckFilter}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Todos</SelectItem>
+                    {trucks.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.name} ({t.plate})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Motorista</Label>
+                <Select value={driverFilter} onValueChange={setDriverFilter}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Todos</SelectItem>
+                    <SelectItem value="__none__">Sem motorista</SelectItem>
+                    {drivers.map((d) => (
+                      <SelectItem key={d.id} value={d.id}>
+                        {d.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5 sm:col-span-2 lg:col-span-4">
+                <Label>Status</Label>
+                <Select
+                  value={statusFilter}
+                  onValueChange={(v) => setStatusFilter(v as "__all__" | "aberto" | "pago" | "arquivado")}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Todos</SelectItem>
+                    <SelectItem value="aberto">Aberta</SelectItem>
+                    <SelectItem value="pago">Recebido</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           </Card>
 
           {trucks.length === 0 && (
