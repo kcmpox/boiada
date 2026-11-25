@@ -1,5 +1,5 @@
-import { useState, useCallback } from 'react';
-import { createRoute } from '@tanstack/react-router';
+import { useState, useCallback } from "react";
+import { createRoute } from "@tanstack/react-router";
 import {
   Truck,
   ArrowLeftRight,
@@ -7,21 +7,21 @@ import {
   History,
   Archive,
   ChevronRight,
-} from 'lucide-react';
-import { rootRoute } from './root';
-import { listarViagens } from '../storage/viagensStorage';
-import { SecaoViagensAtivas } from '../components/viagens/SecaoViagensAtivas';
-import { SecaoSaidaChegada } from '../components/viagens/SecaoSaidaChegada';
-import { SecaoAnimaisPerdidos } from '../components/viagens/SecaoAnimaisPerdidos';
-import { SecaoHistoricoViagens } from '../components/viagens/SecaoHistoricoViagens';
-import { SecaoViagensArquivadas } from '../components/viagens/SecaoViagensArquivadas';
+} from "lucide-react";
+import { rootRoute } from "./root";
+import { listarViagens } from "../storage/viagensStorage";
+import { SecaoViagensAtivas } from "../components/viagens/SecaoViagensAtivas";
+import { SecaoSaidaChegada } from "../components/viagens/SecaoSaidaChegada";
+import { SecaoAnimaisPerdidos } from "../components/viagens/SecaoAnimaisPerdidos";
+import { SecaoHistoricoViagens } from "../components/viagens/SecaoHistoricoViagens";
+import { SecaoViagensArquivadas } from "../components/viagens/SecaoViagensArquivadas";
 
 type CategoriaViagemId =
-  | 'viagens'
-  | 'saida_chegada'
-  | 'animais_perdidos'
-  | 'historico'
-  | 'arquivadas';
+  | "viagens"
+  | "saida_chegada"
+  | "animais_perdidos"
+  | "historico"
+  | "arquivadas";
 
 interface CategoriaViagem {
   id: CategoriaViagemId;
@@ -33,43 +33,42 @@ interface CategoriaViagem {
 
 const CATEGORIAS_VIAGEM: CategoriaViagem[] = [
   {
-    id: 'viagens',
-    titulo: 'Viagens',
-    subtitulo: 'Lançamentos e fretes ativos',
+    id: "viagens",
+    titulo: "Viagens",
+    subtitulo: "Lançamentos e fretes ativos",
     descricaoArea:
-      'Registre novas viagens de transporte de gado com cálculo automático pela tabela do pagador.',
+      "Registre novas viagens de transporte de gado com cálculo automático pela tabela do pagador.",
     icon: Truck,
   },
   {
-    id: 'saida_chegada',
-    titulo: 'Saída & Chegada',
-    subtitulo: 'Controle de embarque e desembarque',
+    id: "saida_chegada",
+    titulo: "Saída & Chegada",
+    subtitulo: "Controle de embarque e desembarque",
     descricaoArea:
-      'Registre o dia e a hora de saída e chegada das viagens realizadas.',
+      "Registre o dia e a hora de saída e chegada das viagens realizadas.",
     icon: ArrowLeftRight,
   },
   {
-    id: 'animais_perdidos',
-    titulo: 'Animais Perdidos',
-    subtitulo: 'Ocorrências e sinistros em rota',
+    id: "animais_perdidos",
+    titulo: "Animais Perdidos",
+    subtitulo: "Ocorrências e sinistros em rota",
     descricaoArea:
-      'Informe se houve perda de animais nas viagens concluídas e registre quantidade e valor.',
+      "Informe se houve perda de animais nas viagens concluídas e registre quantidade e valor.",
     icon: AlertTriangle,
   },
   {
-    id: 'historico',
-    titulo: 'Histórico',
-    subtitulo: 'Extrato cronológico de viagens',
+    id: "historico",
+    titulo: "Histórico",
+    subtitulo: "Extrato cronológico de viagens",
     descricaoArea:
-      'Acompanhe a timeline completa com horários de saída e chegada de cada viagem.',
+      "Acompanhe a timeline completa com horários de saída e chegada de cada viagem.",
     icon: History,
   },
   {
-    id: 'arquivadas',
-    titulo: 'Arquivadas',
-    subtitulo: 'Registros arquivados',
-    descricaoArea:
-      'Visualize viagens arquivadas fora da operação ativa.',
+    id: "arquivadas",
+    titulo: "Arquivadas",
+    subtitulo: "Registros arquivados",
+    descricaoArea: "Visualize viagens arquivadas fora da operação ativa.",
     icon: Archive,
   },
 ];
@@ -77,12 +76,12 @@ const CATEGORIAS_VIAGEM: CategoriaViagem[] = [
 function lerContadoresPendencias() {
   const ativas = listarViagens();
   const pendentesSaidaChegada = ativas.filter(
-    (v) => v.statusSaidaChegada === 'pendente'
+    (v) => v.statusSaidaChegada === "pendente",
   ).length;
   const pendentesAnimaisPerdidos = ativas.filter(
     (v) =>
-      v.statusSaidaChegada === 'registrado' &&
-      v.statusAnimaisPerdidos === 'pendente'
+      v.statusSaidaChegada === "registrado" &&
+      v.statusAnimaisPerdidos === "pendente",
   ).length;
 
   return { pendentesSaidaChegada, pendentesAnimaisPerdidos };
@@ -90,7 +89,7 @@ function lerContadoresPendencias() {
 
 function ViagensPage() {
   const [categoriaAtiva, setCategoriaAtiva] =
-    useState<CategoriaViagemId>('viagens');
+    useState<CategoriaViagemId>("viagens");
   const [contadores, setContadores] = useState(() => lerContadoresPendencias());
 
   const atualizarContadores = useCallback(() => {
@@ -118,7 +117,8 @@ function ViagensPage() {
             Viagens
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-            Controle operacional de fretes, saída e chegada, ocorrências e histórico.
+            Controle operacional de fretes, saída e chegada, ocorrências e
+            histórico.
           </p>
         </div>
       </div>
@@ -129,9 +129,9 @@ function ViagensPage() {
             const Icon = cat.icon;
             const ativa = categoriaAtiva === cat.id;
             const badgeCount =
-              cat.id === 'saida_chegada'
+              cat.id === "saida_chegada"
                 ? contadores.pendentesSaidaChegada
-                : cat.id === 'animais_perdidos'
+                : cat.id === "animais_perdidos"
                   ? contadores.pendentesAnimaisPerdidos
                   : 0;
 
@@ -142,16 +142,16 @@ function ViagensPage() {
                 onClick={() => handleTrocarCategoria(cat.id)}
                 className={`w-full flex items-center justify-between p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
                   ativa
-                    ? 'bg-white dark:bg-slate-900 border-brand-500 ring-1 ring-brand-500/30 shadow-xs'
-                    : 'bg-white/60 dark:bg-slate-900/40 border-slate-200/80 dark:border-slate-800/80 hover:bg-white dark:hover:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700'
+                    ? "bg-white dark:bg-slate-900 border-brand-500 ring-1 ring-brand-500/30 shadow-xs"
+                    : "bg-white/60 dark:bg-slate-900/40 border-slate-200/80 dark:border-slate-800/80 hover:bg-white dark:hover:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700"
                 }`}
               >
                 <div className="flex items-center gap-3.5 min-w-0">
                   <div
                     className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
                       ativa
-                        ? 'bg-brand-500 text-brand-contrast shadow-xs'
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
+                        ? "bg-brand-500 text-brand-contrast shadow-xs"
+                        : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
                     }`}
                   >
                     <Icon className="w-5 h-5" />
@@ -161,8 +161,8 @@ function ViagensPage() {
                       <span
                         className={`text-sm font-semibold truncate ${
                           ativa
-                            ? 'text-slate-900 dark:text-white'
-                            : 'text-slate-700 dark:text-slate-300'
+                            ? "text-slate-900 dark:text-white"
+                            : "text-slate-700 dark:text-slate-300"
                         }`}
                       >
                         {cat.titulo}
@@ -182,8 +182,8 @@ function ViagensPage() {
                 <ChevronRight
                   className={`w-4 h-4 shrink-0 transition-transform ${
                     ativa
-                      ? 'text-brand-600 dark:text-brand-400 translate-x-0.5'
-                      : 'text-slate-300 dark:text-slate-700'
+                      ? "text-brand-600 dark:text-brand-400 translate-x-0.5"
+                      : "text-slate-300 dark:text-slate-700"
                   }`}
                 />
               </button>
@@ -206,17 +206,15 @@ function ViagensPage() {
             </div>
           </div>
 
-          {categoriaAtiva === 'viagens' && <SecaoViagensAtivas />}
-          {categoriaAtiva === 'saida_chegada' && (
+          {categoriaAtiva === "viagens" && <SecaoViagensAtivas />}
+          {categoriaAtiva === "saida_chegada" && (
             <SecaoSaidaChegada onAtualizarContadores={atualizarContadores} />
           )}
-          {categoriaAtiva === 'animais_perdidos' && (
-            <SecaoAnimaisPerdidos
-              onAtualizarContadores={atualizarContadores}
-            />
+          {categoriaAtiva === "animais_perdidos" && (
+            <SecaoAnimaisPerdidos onAtualizarContadores={atualizarContadores} />
           )}
-          {categoriaAtiva === 'historico' && <SecaoHistoricoViagens />}
-          {categoriaAtiva === 'arquivadas' && <SecaoViagensArquivadas />}
+          {categoriaAtiva === "historico" && <SecaoHistoricoViagens />}
+          {categoriaAtiva === "arquivadas" && <SecaoViagensArquivadas />}
         </section>
       </div>
     </div>
@@ -225,6 +223,6 @@ function ViagensPage() {
 
 export const viagensRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/viagens',
+  path: "/viagens",
   component: ViagensPage,
 });
