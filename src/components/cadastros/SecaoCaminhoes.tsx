@@ -10,10 +10,9 @@ import {
 import type { Caminhao, Motorista } from '../../storage/cadastrosStorage';
 import {
   ModalEditarCaminhao,
-  ModalEditarJson,
-} from '../CadastrosModals';
+} from './CadastrosModals';
+import { ModalEditarJsonCadastro } from '../json_editor/ModalEditarJsonCadastro';
 import { useDevMode } from '../../context/DevModeContext';
-
 export function SecaoCaminhoes({
   caminhoes,
   motoristas,
@@ -235,8 +234,8 @@ export function SecaoCaminhoes({
       )}
 
       {caminhaoJsonEmEdicao && (
-        <ModalEditarJson
-          titulo={`JSON • ${caminhaoJsonEmEdicao.nome}`}
+        <ModalEditarJsonCadastro
+          tipo="caminhao"
           registro={caminhaoJsonEmEdicao}
           onSalvar={handleSalvarEdicao}
           onFechar={() => setCaminhaoJsonEmEdicao(null)}

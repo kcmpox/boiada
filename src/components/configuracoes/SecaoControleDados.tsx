@@ -1,5 +1,9 @@
 import { useRef, useState } from 'react';
 import { Download, Upload, Check, AlertCircle, FolderSync } from 'lucide-react';
+import {
+  gerarPayloadBackup,
+  importarPayloadBackup,
+} from '../../storage/configuracoesStorage';
 
 export function SecaoControleDados() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -10,23 +14,7 @@ export function SecaoControleDados() {
 
   const handleExportarDados = () => {
     try {
-      const dadosExportados: Record<string, string> = {};
-
-      for (let i = 0; i < localStorage.length; i++) {
-        const chave = localStorage.key(i);
-        if (chave && chave.startsWith('bt_')) {
-          const valor = localStorage.getItem(chave);
-          if (valor !== null) {
-            dadosExportados[chave] = valor;
-          }
-        }
-      }
-
-      const payload = {
-        sistema: 'Bacchiega Transporte',
-        dataExportacao: new Date().toISOString(),
-        dados: dadosExportados,
-      };
+      const payload = gerarPayloadBackup();
 
       const blob = new Blob([JSON.stringify(payload, null, 2)], {
         type: 'application/json',
@@ -61,17 +49,7 @@ export function SecaoControleDados() {
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
-        const conteudo = JSON.parse(event.target?.result as string);
-
-        if (!conteudo || typeof conteudo.dados !== 'object') {
-          throw new Error('Formato inválido');
-        }
-
-        Object.entries(conteudo.dados).forEach(([chave, valor]) => {
-          if (chave.startsWith('bt_') && typeof valor === 'string') {
-            localStorage.setItem(chave, valor);
-          }
-        });
+        importarPayloadBackup(event.target?.result as string);
 
         setMensagem({
           tipo: 'sucesso',

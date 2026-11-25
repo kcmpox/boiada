@@ -19,7 +19,7 @@ import {
   restaurarTabelaDoHistorico,
   type TipoEntidadeTabela,
   type RegistroHistoricoTabela,
-} from '../../storage/tabelasPrecoStorage';
+} from '../../../storage/tabelasPrecoStorage';
 
 interface ModalHistoricoTabelasProps {
   entidadeTipo: TipoEntidadeTabela;

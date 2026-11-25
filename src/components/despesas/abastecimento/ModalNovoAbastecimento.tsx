@@ -70,6 +70,8 @@ interface ItemFormState {
 interface ModalNovoAbastecimentoProps {
   aberto: boolean;
   abastecimentoEdicao?: Abastecimento | null;
+  caminhaoInicialId?: string;
+  viagemInicialId?: string;
   onFechar: () => void;
   onSalvo: () => void;
 }
@@ -106,7 +108,7 @@ function extrairLista<T>(
           }
         }
       } catch {
-        // Ignora funções com argumentos
+        // Ignora funções que exigem argumentos
       }
     }
   }
@@ -261,6 +263,8 @@ function resolverMotoristaDoCaminhao(
 export function ModalNovoAbastecimento({
   aberto,
   abastecimentoEdicao,
+  caminhaoInicialId,
+  viagemInicialId,
   onFechar,
   onSalvo,
 }: ModalNovoAbastecimentoProps) {
@@ -272,7 +276,7 @@ export function ModalNovoAbastecimento({
   const [hodometroInput, setHodometroInput] = useState('');
   const [notaFiscal, setNotaFiscal] = useState('');
   const [responsavelPagamento, setResponsavelPagamento] =
-    useState<ResponsavelPagamentoAbastecimento>('minha_despesa');
+    useState<ResponsavelPagamentoAbastecimento>('frigorifico_desconta');
 
   const [modoVinculoViagem, setModoVinculoViagem] = useState<'lista' | 'minuta'>(
     'lista'
@@ -344,6 +348,11 @@ export function ModalNovoAbastecimento({
     setViagemId('');
     setMinutaDigitada('');
 
+    if (!novoId) {
+      setMotoristaId('');
+      return;
+    }
+
     const encontrado = caminhoes.find((c) => String(c.id) === novoId);
     const motoristaVinculado = resolverMotoristaDoCaminhao(
       encontrado,
@@ -409,19 +418,29 @@ export function ModalNovoAbastecimento({
       return;
     }
 
-    const primeiroCaminhao = caminhoes[0];
+    const caminhaoPadrao = caminhaoInicialId
+      ? caminhoes.find((c) => String(c.id) === String(caminhaoInicialId))
+      : undefined;
+
     setDataHora(dataHoraAtualLocal());
-    setCaminhaoId(primeiroCaminhao ? String(primeiroCaminhao.id) : '');
-    setMotoristaId(resolverMotoristaDoCaminhao(primeiroCaminhao, motoristas));
+    setCaminhaoId(caminhaoPadrao ? String(caminhaoPadrao.id) : '');
+    setMotoristaId(resolverMotoristaDoCaminhao(caminhaoPadrao, motoristas));
     setHodometroInput('');
     setNotaFiscal('');
-    setResponsavelPagamento('minha_despesa');
+    setResponsavelPagamento('frigorifico_desconta');
     setModoVinculoViagem('lista');
-    setViagemId('');
+    setViagemId(viagemInicialId ? String(viagemInicialId) : '');
     setMinutaDigitada('');
     setItens([criarItemVazio('Diesel S10')]);
     setErro('');
-  }, [aberto, abastecimentoEdicao, caminhoes, motoristas]);
+  }, [
+    aberto,
+    abastecimentoEdicao,
+    caminhaoInicialId,
+    viagemInicialId,
+    caminhoes,
+    motoristas,
+  ]);
 
   useEffect(() => {
     if (!aberto) return;
@@ -680,7 +699,7 @@ export function ModalNovoAbastecimento({
                 required
                 className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500"
               >
-                <option value="">Selecione um caminhão...</option>
+                <option value="">Selecione um caminhão..</option>
                 {caminhoes.map((c, idx) => {
                   const nome = c.nome || c.apelido || `Caminhão ${idx + 1}`;
                   return (
@@ -702,7 +721,7 @@ export function ModalNovoAbastecimento({
                 onChange={(e) => setMotoristaId(e.target.value)}
                 className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500"
               >
-                <option value="">Sem motorista / Não informado</option>
+                <option value="">Sem motorista</option>
                 {motoristas.map((m) => (
                   <option key={String(m.id)} value={String(m.id)}>
                     {m.nome}

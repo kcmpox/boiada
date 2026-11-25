@@ -7,6 +7,7 @@ import {
   Pencil,
   Archive,
   RotateCcw,
+  Trash2,
   Split,
   Code2,
 } from 'lucide-react';
@@ -37,6 +38,7 @@ interface CardAbastecimentoProps {
   onEditarJson?: (abastecimento: Abastecimento) => void;
   onArquivar?: (abastecimento: Abastecimento) => void;
   onRestaurar?: (abastecimento: Abastecimento) => void;
+  onExcluir?: () => void;
 }
 
 const CONFIG_RESPONSAVEL: Record<
@@ -148,6 +150,7 @@ export function CardAbastecimento({
   onEditarJson,
   onArquivar,
   onRestaurar,
+  onExcluir,
 }: CardAbastecimentoProps) {
   const { abastecimento: ab, responsavelEfetivo, itens } = grupo;
   const cfg = CONFIG_RESPONSAVEL[responsavelEfetivo];
@@ -296,6 +299,17 @@ export function CardAbastecimento({
                   <Archive className="w-4 h-4" />
                 </button>
               )
+            )}
+
+            {onExcluir && (
+              <button
+                type="button"
+                onClick={onExcluir}
+                title="Excluir abastecimento"
+                className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/70 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 hover:border-red-500/40 transition-colors cursor-pointer"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
             )}
           </div>
         </div>

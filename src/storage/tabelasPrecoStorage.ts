@@ -10,12 +10,23 @@ export interface FaixaPrecoKm {
   valorFixo: number;
 }
 
+export interface RegraPorKm {
+  ativa: boolean;
+  aPartirDeKm: number;
+  valorPorKm: number;
+}
+
+export interface ConfigCarretaAlugada {
+  ativa: boolean;
+  percentual: number;
+}
+
 export interface RegraRecebimentoCiclo {
   id: string;
   tipoGado: TipoGadoTabela;
-  diaInicio: number; // 1 a 31
-  diaFim: number; // 1 a 31
-  diaRecebimento: number; // 1 a 31
+  diaInicio: number;
+  diaFim: number;
+  diaRecebimento: number;
   mesRecebimento: MesRecebimentoRegra;
 }
 
@@ -26,310 +37,357 @@ export interface TabelaPrecoEntidade {
   baseKm: BaseQuilometragemTabela;
   dataCriacao: string;
   dataAtualizacao: string;
-  observacoes: string;
+  observacoes?: string;
   faixas: FaixaPrecoKm[];
-  regraPorKm: {
-    ativa: boolean;
-    aPartirDeKm: number;
-    valorPorKm: number;
-  };
-  carretaAlugada: {
-    ativa: boolean;
-    percentual: number;
-  };
-  regrasRecebimento: RegraRecebimentoCiclo[];
+  regraPorKm: RegraPorKm;
+  carretaAlugada: ConfigCarretaAlugada;
+  taxasAluguelPorCaminhao?: Record<string, ConfigCarretaAlugada>;
+  regrasRecebimento?: RegraRecebimentoCiclo[];
 }
 
-export interface RegistroHistoricoTabela {
+export interface HistoricoTabelaPrecoItem {
   id: string;
   entidadeTipo: TipoEntidadeTabela;
   entidadeId: string;
-  dataInicioVigencia: string;
+  dataInicioVigencia?: string;
   dataArquivamento: string;
-  motivoReajuste: string;
+  motivo?: string;
+  motivoReajuste?: string;
   tabela: TabelaPrecoEntidade;
 }
 
-const STORAGE_VIGENTES = 'bt_tabelas_preco_vigentes';
-const STORAGE_HISTORICO = 'bt_tabelas_preco_historico';
-
-function normalizarTabela(t: Partial<TabelaPrecoEntidade>): TabelaPrecoEntidade {
-  const agora = new Date().toISOString();
-  return {
-    id: t.id || crypto.randomUUID(),
-    entidadeTipo: t.entidadeTipo || 'intermediario',
-    entidadeId: t.entidadeId || '',
-    baseKm: t.baseKm || 'ida_volta',
-    dataCriacao: t.dataCriacao || t.dataAtualizacao || agora,
-    dataAtualizacao: t.dataAtualizacao || agora,
-    observacoes: t.observacoes || '',
-    faixas: Array.isArray(t.faixas) ? t.faixas : [],
-    regraPorKm: {
-      ativa: t.regraPorKm?.ativa ?? true,
-      aPartirDeKm: Number(t.regraPorKm?.aPartirDeKm) || 0,
-      valorPorKm: Number(t.regraPorKm?.valorPorKm) || 0,
-    },
-    carretaAlugada: {
-      ativa: t.carretaAlugada?.ativa ?? false,
-      percentual: Number(t.carretaAlugada?.percentual) || 0,
-    },
-    regrasRecebimento: Array.isArray(t.regrasRecebimento)
-      ? t.regrasRecebimento
-      : [],
-  };
+export interface ResultadoCalculoFrete {
+  valor: number;
+  kmUtilizado: number;
+  baseKm: BaseQuilometragemTabela;
+  regraAplicada: string;
+  percentualAluguel: number;
+  valorAluguelCarreta: number;
+  origemTaxaAluguel: 'caminhao' | 'tabela' | 'nenhum';
 }
 
-function lerTodasVigentes(): TabelaPrecoEntidade[] {
+export interface ResultadoCalculoDataRecebimento {
+  dataRecebimentoIso: string;
+  descricaoRegra: string;
+}
+
+const CHAVE_TABELAS = 'bt_tabelas_preco';
+const CHAVE_HISTORICO_TABELAS = 'bt_tabelas_preco_historico';
+
+function lerMapaTabelas(): Record<string, TabelaPrecoEntidade> {
   try {
-    const raw = JSON.parse(localStorage.getItem(STORAGE_VIGENTES) || '[]');
-    return Array.isArray(raw) ? raw.map(normalizarTabela) : [];
+    const bruto = localStorage.getItem(CHAVE_TABELAS);
+    if (!bruto) return {};
+    const parsed = JSON.parse(bruto);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+function escreverMapaTabelas(mapa: Record<string, TabelaPrecoEntidade>): void {
+  localStorage.setItem(CHAVE_TABELAS, JSON.stringify(mapa));
+  window.dispatchEvent(new Event('storage'));
+}
+
+function lerTodosHistoricosBrutos(): HistoricoTabelaPrecoItem[] {
+  try {
+    const bruto = localStorage.getItem(CHAVE_HISTORICO_TABELAS);
+    if (!bruto) return [];
+    const parsed = JSON.parse(bruto);
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
   }
 }
 
-function lerTodoHistorico(): RegistroHistoricoTabela[] {
-  try {
-    const raw = JSON.parse(localStorage.getItem(STORAGE_HISTORICO) || '[]');
-    return Array.isArray(raw) ? raw : [];
-  } catch {
-    return [];
-  }
+function escreverHistoricosBrutos(itens: HistoricoTabelaPrecoItem[]): void {
+  localStorage.setItem(CHAVE_HISTORICO_TABELAS, JSON.stringify(itens));
+  window.dispatchEvent(new Event('storage'));
 }
 
 export function obterTabelaPreco(
   entidadeTipo: TipoEntidadeTabela,
   entidadeId: string
 ): TabelaPrecoEntidade | null {
-  const todas = lerTodasVigentes();
-  return (
-    todas.find(
-      (t) => t.entidadeTipo === entidadeTipo && t.entidadeId === entidadeId
-    ) || null
-  );
+  const mapa = lerMapaTabelas();
+  const chave = `${entidadeTipo}:${entidadeId}`;
+  const tab = mapa[chave];
+  if (!tab) return null;
+
+  return {
+    ...tab,
+    baseKm: tab.baseKm || 'ida_volta',
+    faixas: Array.isArray(tab.faixas) ? tab.faixas : [],
+    regraPorKm: tab.regraPorKm || {
+      ativa: false,
+      aPartirDeKm: 0,
+      valorPorKm: 0,
+    },
+    carretaAlugada: tab.carretaAlugada || { ativa: false, percentual: 0 },
+    taxasAluguelPorCaminhao:
+      tab.taxasAluguelPorCaminhao &&
+      typeof tab.taxasAluguelPorCaminhao === 'object'
+        ? tab.taxasAluguelPorCaminhao
+        : {},
+    regrasRecebimento: Array.isArray(tab.regrasRecebimento)
+      ? tab.regrasRecebimento
+      : [],
+  };
 }
 
-export function buscarTabelaPorId(tabelaId: string): TabelaPrecoEntidade | null {
-  const vigente = lerTodasVigentes().find((t) => t.id === tabelaId);
-  if (vigente) return vigente;
+export function listarHistoricoTabelas(
+  entidadeTipo?: TipoEntidadeTabela,
+  entidadeId?: string
+): HistoricoTabelaPrecoItem[] {
+  return lerTodosHistoricosBrutos().filter((item) => {
+    if (entidadeTipo && item.entidadeTipo !== entidadeTipo) return false;
+    if (entidadeId && String(item.entidadeId) !== String(entidadeId)) {
+      return false;
+    }
+    return true;
+  });
+}
 
-  const noHistorico = lerTodoHistorico().find((h) => h.id === tabelaId);
-  if (noHistorico) return normalizarTabela(noHistorico.tabela);
+export function excluirRegistroHistorico(id: string): void {
+  const atual = lerTodosHistoricosBrutos();
+  const filtrada = atual.filter((item) => String(item.id) !== String(id));
+  escreverHistoricosBrutos(filtrada);
+}
 
-  return null;
+export function restaurarTabelaDoHistorico(
+  historicoId: string
+): TabelaPrecoEntidade | null {
+  const historicos = lerTodosHistoricosBrutos();
+  const alvo = historicos.find((h) => String(h.id) === String(historicoId));
+  if (!alvo || !alvo.tabela) return null;
+
+  const mapa = lerMapaTabelas();
+  const chave = `${alvo.entidadeTipo}:${alvo.entidadeId}`;
+  const vigenteAtual = mapa[chave];
+  const agora = new Date().toISOString();
+
+  const proximoHistorico = historicos.filter(
+    (h) => String(h.id) !== String(historicoId)
+  );
+
+  if (vigenteAtual) {
+    proximoHistorico.unshift({
+      id: crypto.randomUUID(),
+      entidadeTipo: vigenteAtual.entidadeTipo,
+      entidadeId: vigenteAtual.entidadeId,
+      dataInicioVigencia: vigenteAtual.dataCriacao,
+      dataArquivamento: agora,
+      motivo: 'Substituída por restauração do histórico',
+      motivoReajuste: 'Substituída por restauração do histórico',
+      tabela: vigenteAtual,
+    });
+  }
+
+  const restaurada: TabelaPrecoEntidade = {
+    ...alvo.tabela,
+    id: crypto.randomUUID(),
+    entidadeTipo: alvo.entidadeTipo,
+    entidadeId: String(alvo.entidadeId),
+    dataCriacao: agora,
+    dataAtualizacao: agora,
+  };
+
+  mapa[chave] = restaurada;
+  escreverHistoricosBrutos(proximoHistorico);
+  escreverMapaTabelas(mapa);
+
+  return restaurada;
+}
+
+function anexarHistorico(item: HistoricoTabelaPrecoItem): void {
+  const atual = lerTodosHistoricosBrutos();
+  escreverHistoricosBrutos([item, ...atual]);
 }
 
 export function salvarTabelaPreco(
-  novaTabela: TabelaPrecoEntidade,
+  tabela: TabelaPrecoEntidade,
   modo: 'corrigir' | 'reajuste' = 'corrigir',
-  motivoReajuste = ''
+  motivo?: string
 ): TabelaPrecoEntidade {
-  const todasVigentes = lerTodasVigentes();
-  const anterior = todasVigentes.find(
-    (t) =>
-      t.entidadeTipo === novaTabela.entidadeTipo &&
-      t.entidadeId === novaTabela.entidadeId
-  );
-
+  const mapa = lerMapaTabelas();
+  const chave = `${tabela.entidadeTipo}:${tabela.entidadeId}`;
+  const anterior = mapa[chave];
   const agora = new Date().toISOString();
-  let tabelaFinal: TabelaPrecoEntidade;
 
-  if (modo === 'reajuste' && anterior) {
-    const historicoAtual = lerTodoHistorico();
-    const registroArquivado: RegistroHistoricoTabela = {
-      id: anterior.id,
+  if (anterior && modo === 'reajuste') {
+    const motivoLimpo = motivo?.trim() || 'Reajuste de tabela';
+    anexarHistorico({
+      id: crypto.randomUUID(),
       entidadeTipo: anterior.entidadeTipo,
       entidadeId: anterior.entidadeId,
-      dataInicioVigencia: anterior.dataCriacao || anterior.dataAtualizacao,
+      dataInicioVigencia: anterior.dataCriacao,
       dataArquivamento: agora,
-      motivoReajuste: motivoReajuste.trim() || 'Reajuste de tabela',
+      motivo: motivoLimpo,
+      motivoReajuste: motivoLimpo,
       tabela: anterior,
-    };
-    localStorage.setItem(
-      STORAGE_HISTORICO,
-      JSON.stringify([registroArquivado, ...historicoAtual])
-    );
+    });
 
-    tabelaFinal = {
-      ...novaTabela,
+    const novaTabela: TabelaPrecoEntidade = {
+      ...tabela,
       id: crypto.randomUUID(),
       dataCriacao: agora,
       dataAtualizacao: agora,
     };
-  } else {
-    tabelaFinal = {
-      ...novaTabela,
-      id: anterior?.id || novaTabela.id || crypto.randomUUID(),
-      dataCriacao: anterior?.dataCriacao || novaTabela.dataCriacao || agora,
-      dataAtualizacao: agora,
+    mapa[chave] = novaTabela;
+    escreverMapaTabelas(mapa);
+    return novaTabela;
+  }
+
+  const atualizada: TabelaPrecoEntidade = {
+    ...tabela,
+    id: anterior?.id || tabela.id || crypto.randomUUID(),
+    dataCriacao: anterior?.dataCriacao || tabela.dataCriacao || agora,
+    dataAtualizacao: agora,
+  };
+  mapa[chave] = atualizada;
+  escreverMapaTabelas(mapa);
+  return atualizada;
+}
+
+export function resolverTaxaAluguelCaminhao(
+  tabela: TabelaPrecoEntidade,
+  caminhaoId?: string
+): {
+  percentual: number;
+  origem: 'caminhao' | 'tabela' | 'nenhum';
+} {
+  if (caminhaoId && tabela.taxasAluguelPorCaminhao) {
+    const configCam = tabela.taxasAluguelPorCaminhao[String(caminhaoId)];
+    if (configCam && configCam.ativa && configCam.percentual > 0) {
+      return {
+        percentual: Number(configCam.percentual),
+        origem: 'caminhao',
+      };
+    }
+  }
+
+  if (tabela.carretaAlugada?.ativa && tabela.carretaAlugada.percentual > 0) {
+    return {
+      percentual: Number(tabela.carretaAlugada.percentual),
+      origem: 'tabela',
     };
   }
 
-  const outrasVigentes = todasVigentes.filter(
-    (t) =>
-      !(
-        t.entidadeTipo === tabelaFinal.entidadeTipo &&
-        t.entidadeId === tabelaFinal.entidadeId
-      )
-  );
-  localStorage.setItem(
-    STORAGE_VIGENTES,
-    JSON.stringify([tabelaFinal, ...outrasVigentes])
-  );
-
-  return tabelaFinal;
-}
-
-export function listarHistoricoTabelas(
-  entidadeTipo: TipoEntidadeTabela,
-  entidadeId: string
-): RegistroHistoricoTabela[] {
-  return lerTodoHistorico().filter(
-    (h) => h.entidadeTipo === entidadeTipo && h.entidadeId === entidadeId
-  );
-}
-
-export function excluirRegistroHistorico(historicoId: string): void {
-  const filtrados = lerTodoHistorico().filter((h) => h.id !== historicoId);
-  localStorage.setItem(STORAGE_HISTORICO, JSON.stringify(filtrados));
-}
-
-export function restaurarTabelaDoHistorico(
-  registro: RegistroHistoricoTabela
-): TabelaPrecoEntidade {
-  const restaurada: TabelaPrecoEntidade = {
-    ...normalizarTabela(registro.tabela),
-    id: crypto.randomUUID(),
-    dataCriacao: new Date().toISOString(),
-    dataAtualizacao: new Date().toISOString(),
-  };
-
-  return salvarTabelaPreco(
-    restaurada,
-    'reajuste',
-    `Restaurada versão arquivada em ${new Date(registro.dataArquivamento).toLocaleDateString('pt-BR')}`
-  );
+  return { percentual: 0, origem: 'nenhum' };
 }
 
 export function calcularFretePelaTabela(
   tabela: TabelaPrecoEntidade,
-  kmUmaPerna: number
-): {
-  valor: number;
-  valorAluguelCarreta: number;
-  percentualAluguel: number;
-  kmConsiderado: number;
-  regraAplicada: string;
-} | null {
-  if (kmUmaPerna <= 0) return null;
+  kmIda: number,
+  caminhaoId?: string
+): ResultadoCalculoFrete | null {
+  if (!Number.isFinite(kmIda) || kmIda <= 0) return null;
 
-  const kmConsiderado =
-    tabela.baseKm === 'ida_volta'
-      ? Number((kmUmaPerna * 2).toFixed(4))
-      : kmUmaPerna;
+  const baseKm = tabela.baseKm || 'ida_volta';
+  const kmUtilizado =
+    baseKm === 'ida_volta' ? Number((kmIda * 2).toFixed(4)) : Number(kmIda);
 
-  const sufixoBase =
-    tabela.baseKm === 'ida_volta'
-      ? `(${kmUmaPerna} km ida × 2 = ${kmConsiderado} km ida/volta)`
-      : `(${kmConsiderado} km só ida)`;
+  const taxa = resolverTaxaAluguelCaminhao(tabela, caminhaoId);
 
-  const montarRetorno = (valorBruto: number, regraAplicada: string) => {
-    const perc = tabela.carretaAlugada?.ativa
-      ? tabela.carretaAlugada.percentual
-      : 0;
-    const valorAluguelCarreta =
-      perc > 0 ? Number(((valorBruto * perc) / 100).toFixed(2)) : 0;
+  const regraKm = tabela.regraPorKm;
+  if (
+    regraKm &&
+    regraKm.ativa &&
+    regraKm.valorPorKm > 0 &&
+    kmUtilizado > regraKm.aPartirDeKm
+  ) {
+    const valorBruto = Number((kmUtilizado * regraKm.valorPorKm).toFixed(2));
+    const valorAluguelCarreta = Number(
+      ((valorBruto * taxa.percentual) / 100).toFixed(2)
+    );
 
     return {
       valor: valorBruto,
+      kmUtilizado,
+      baseKm,
+      regraAplicada: `Acima de ${regraKm.aPartirDeKm} km: ${kmUtilizado} km × R$ ${regraKm.valorPorKm.toFixed(2)}`,
+      percentualAluguel: taxa.percentual,
       valorAluguelCarreta,
-      percentualAluguel: perc,
-      kmConsiderado,
-      regraAplicada,
+      origemTaxaAluguel: taxa.origem,
     };
-  };
+  }
 
-  const faixasOrdenadas = [...tabela.faixas].sort(
+  const faixasOrdenadas = [...(tabela.faixas || [])].sort(
     (a, b) => a.kmFinal - b.kmFinal
   );
 
-  if (faixasOrdenadas.length > 0) {
-    const menorPiso = Math.min(...faixasOrdenadas.map((f) => f.kmInicial));
-
-    if (kmConsiderado >= menorPiso) {
-      const faixaEncontrada = faixasOrdenadas.find(
-        (f) => kmConsiderado <= f.kmFinal
+  for (const faixa of faixasOrdenadas) {
+    if (kmUtilizado >= faixa.kmInicial && kmUtilizado <= faixa.kmFinal) {
+      const valorBruto = Number(faixa.valorFixo.toFixed(2));
+      const valorAluguelCarreta = Number(
+        ((valorBruto * taxa.percentual) / 100).toFixed(2)
       );
 
-      if (faixaEncontrada) {
-        return montarRetorno(
-          faixaEncontrada.valorFixo,
-          `Faixa fechada (${faixaEncontrada.kmInicial} km até ${faixaEncontrada.kmFinal} km) ${sufixoBase}`
-        );
-      }
+      return {
+        valor: valorBruto,
+        kmUtilizado,
+        baseKm,
+        regraAplicada: `Faixa ${faixa.kmInicial} a ${faixa.kmFinal} km (${
+          baseKm === 'ida_volta' ? 'Ida e Volta' : 'Só Ida'
+        })`,
+        percentualAluguel: taxa.percentual,
+        valorAluguelCarreta,
+        origemTaxaAluguel: taxa.origem,
+      };
     }
-  }
-
-  if (
-    tabela.regraPorKm.ativa &&
-    kmConsiderado > tabela.regraPorKm.aPartirDeKm
-  ) {
-    return montarRetorno(
-      kmConsiderado * tabela.regraPorKm.valorPorKm,
-      `Acima de ${tabela.regraPorKm.aPartirDeKm} km: ${kmConsiderado} km × R$ ${tabela.regraPorKm.valorPorKm.toFixed(2)} ${sufixoBase}`
-    );
   }
 
   return null;
 }
 
-/**
- * Calcula a data prevista de recebimento (YYYY-MM-DD) com base na data da viagem,
- * no tipo de gado ('boi_gordo' ou 'boi_magro') e nas regras de ciclo da tabela.
- */
 export function calcularDataRecebimento(
   tabela: TabelaPrecoEntidade,
   dataViagemIso: string,
   tipoGado: TipoGadoTabela
-): { dataRecebimentoIso: string; descricaoRegra: string } | null {
-  if (!dataViagemIso || !tabela.regrasRecebimento?.length) return null;
+): ResultadoCalculoDataRecebimento | null {
+  if (!dataViagemIso) return null;
+  const partes = dataViagemIso.split('-').map(Number);
+  if (partes.length !== 3 || partes.some(Number.isNaN)) return null;
 
-  const [anoStr, mesStr, diaStr] = dataViagemIso.split('-');
-  const ano = Number(anoStr);
-  const mes = Number(mesStr); // 1 a 12
-  const dia = Number(diaStr);
-
-  if (!ano || !mes || !dia) return null;
-
-  const regra = tabela.regrasRecebimento.find(
-    (r) =>
-      r.tipoGado === tipoGado && dia >= r.diaInicio && dia <= r.diaFim
+  const [ano, mes, dia] = partes;
+  const regras = (tabela.regrasRecebimento || []).filter(
+    (r) => r.tipoGado === tipoGado
   );
 
-  if (!regra) return null;
+  const regraEncontrada = regras.find(
+    (r) => dia >= r.diaInicio && dia <= r.diaFim
+  );
+  if (!regraEncontrada) return null;
 
-  let anoDestino = ano;
-  let mesDestino = mes; // 1 a 12
+  let anoAlvo = ano;
+  let mesAlvo = mes;
 
-  if (regra.mesRecebimento === 'mes_seguinte') {
-    mesDestino += 1;
-    if (mesDestino > 12) {
-      mesDestino = 1;
-      anoDestino += 1;
+  if (regraEncontrada.mesRecebimento === 'mes_seguinte') {
+    mesAlvo += 1;
+    if (mesAlvo > 12) {
+      mesAlvo = 1;
+      anoAlvo += 1;
     }
   }
 
-  // Garante que dias como 31 não ultrapassem o último dia do mês destino (ex: fevereiro)
-  const ultimoDiaDoMesDestino = new Date(anoDestino, mesDestino, 0).getDate();
-  const diaFinal = Math.min(regra.diaRecebimento, ultimoDiaDoMesDestino);
+  const ultimoDiaMesAlvo = new Date(anoAlvo, mesAlvo, 0).getDate();
+  const diaFinal = Math.min(regraEncontrada.diaRecebimento, ultimoDiaMesAlvo);
 
-  const dataRecebimentoIso = `${String(anoDestino).padStart(4, '0')}-${String(
-    mesDestino
+  const isoFinal = `${String(anoAlvo).padStart(4, '0')}-${String(
+    mesAlvo
   ).padStart(2, '0')}-${String(diaFinal).padStart(2, '0')}`;
 
-  const descricaoRegra = `Viagens dia ${regra.diaInicio} a ${regra.diaFim} → paga dia ${regra.diaRecebimento} (${
-    regra.mesRecebimento === 'mesmo_mes' ? 'mesmo mês' : 'mês seguinte'
-  })`;
-
-  return { dataRecebimentoIso, descricaoRegra };
+  return {
+    dataRecebimentoIso: isoFinal,
+    descricaoRegra: `Viagem dia ${dia} (${
+      tipoGado === 'boi_gordo' ? 'Boi Gordo' : 'Boi Magro'
+    }) → Dia ${regraEncontrada.diaRecebimento} ${
+      regraEncontrada.mesRecebimento === 'mesmo_mes'
+        ? 'do mesmo mês'
+        : 'do mês seguinte'
+    }`,
+  };
 }

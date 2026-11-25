@@ -17,11 +17,11 @@ import type { Intermediario } from '../../storage/cadastrosStorage';
 import type { TipoEntidadeTabela } from '../../storage/tabelasPrecoStorage';
 import {
   ModalEditarIntermediario,
-  ModalEditarJson,
   UFS_BRASIL,
-} from '../CadastrosModals';
-import { ModalTabelaPrecos } from '../tabelas/ModalTabelaPrecos';
-import { ModalHistoricoTabelas } from '../tabelas/ModalHistoricoTabelas';
+} from './CadastrosModals';
+import { ModalEditarJsonCadastro } from '../json_editor/ModalEditarJsonCadastro';
+import { ModalTabelaPrecos } from './tabelas/ModalTabelaPrecos';
+import { ModalHistoricoTabelas } from './tabelas/ModalHistoricoTabelas';
 import { formatarTelefone } from '../../utils/formatters';
 import { useDevMode } from '../../context/DevModeContext';
 
@@ -410,12 +410,12 @@ export function SecaoIntermediarios({
       )}
 
       {intermediarioJsonEmEdicao && (
-        <ModalEditarJson
-          titulo={`JSON • ${intermediarioJsonEmEdicao.nome}`}
-          registro={intermediarioJsonEmEdicao}
-          onSalvar={handleSalvarEdicao}
-          onFechar={() => setIntermediarioJsonEmEdicao(null)}
-        />
+        <ModalEditarJsonCadastro
+		  tipo="intermediario"
+		  registro={intermediarioJsonEmEdicao}
+		  onSalvar={handleSalvarEdicao}
+		  onFechar={() => setIntermediarioJsonEmEdicao(null)}
+		/>
       )}
 
       {tabelaAberta && (

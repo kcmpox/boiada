@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Table2,
   X,
@@ -14,6 +14,7 @@ import {
   History,
   Wrench,
   CalendarClock,
+  Truck,
 } from 'lucide-react';
 import {
   obterTabelaPreco,
@@ -26,8 +27,10 @@ import {
   type MesRecebimentoRegra,
   type FaixaPrecoKm,
   type RegraRecebimentoCiclo,
+  type ConfigCarretaAlugada,
   type TabelaPrecoEntidade,
-} from '../../storage/tabelasPrecoStorage';
+} from '../../../storage/tabelasPrecoStorage';
+import { listarCaminhoes } from '../../../storage/cadastrosStorage';
 
 interface ModalTabelaPrecosProps {
   entidadeTipo: TipoEntidadeTabela;
@@ -60,6 +63,8 @@ export function ModalTabelaPrecos({
   entidadeNome,
   onFechar,
 }: ModalTabelaPrecosProps) {
+  const caminhoes = useMemo(() => listarCaminhoes(), []);
+
   const [tabelaSalva, setTabelaSalva] = useState<TabelaPrecoEntidade | null>(
     () => obterTabelaPreco(entidadeTipo, entidadeId)
   );
@@ -93,6 +98,16 @@ export function ModalTabelaPrecos({
       : ''
   );
 
+  // Taxas específicas por caminhão
+  const [taxasPorCaminhao, setTaxasPorCaminhao] = useState<
+    Record<string, ConfigCarretaAlugada>
+  >(tabelaSalva?.taxasAluguelPorCaminhao || {});
+  const [caminhaoTaxaId, setCaminhaoTaxaId] = useState<string>(
+    () => caminhoes[0]?.id || ''
+  );
+  const [percentualCaminhaoInput, setPercentualCaminhaoInput] =
+    useState<string>('');
+
   // Regras de Data de Recebimento (Boi Gordo e Boi Magro)
   const [regrasRecebimento, setRegrasRecebimento] = useState<
     RegraRecebimentoCiclo[]
@@ -116,6 +131,7 @@ export function ModalTabelaPrecos({
 
   // Simulador
   const [kmTesteIda, setKmTesteIda] = useState('');
+  const [caminhaoSimulacaoId, setCaminhaoSimulacaoId] = useState<string>('');
   const [dataTesteViagem, setDataTesteViagem] = useState(() =>
     new Date().toISOString().slice(0, 10)
   );
@@ -162,6 +178,30 @@ export function ModalTabelaPrecos({
 
   const removerFaixa = (id: string) => {
     setFaixas(faixas.filter((f) => f.id !== id));
+  };
+
+  const handleSalvarTaxaCaminhao = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!caminhaoTaxaId) return;
+    const perc = parseNumeroRacional(percentualCaminhaoInput);
+    if (isNaN(perc) || perc < 0 || perc > 100) return;
+
+    setTaxasPorCaminhao((prev) => ({
+      ...prev,
+      [caminhaoTaxaId]: {
+        ativa: perc > 0,
+        percentual: perc,
+      },
+    }));
+    setPercentualCaminhaoInput('');
+  };
+
+  const removerTaxaCaminhao = (camId: string) => {
+    setTaxasPorCaminhao((prev) => {
+      const copia = { ...prev };
+      delete copia[camId];
+      return copia;
+    });
   };
 
   const handleAdicionarRegraRecebimento = (e: React.FormEvent) => {
@@ -235,6 +275,7 @@ export function ModalTabelaPrecos({
             ? percAlug
             : 0,
       },
+      taxasAluguelPorCaminhao: taxasPorCaminhao,
       regrasRecebimento,
     };
   };
@@ -268,7 +309,11 @@ export function ModalTabelaPrecos({
   const kmTesteNum = parseNumeroRacional(kmTesteIda);
   const resultadoSimulacao =
     !isNaN(kmTesteNum) && kmTesteNum > 0
-      ? calcularFretePelaTabela(objetoAtual, kmTesteNum)
+      ? calcularFretePelaTabela(
+          objetoAtual,
+          kmTesteNum,
+          caminhaoSimulacaoId || undefined
+        )
       : null;
 
   const simulacaoDataRecebimento = calcularDataRecebimento(
@@ -279,6 +324,10 @@ export function ModalTabelaPrecos({
 
   const regrasDaAbaAtual = regrasRecebimento.filter(
     (r) => r.tipoGado === abaGadoRecebimento
+  );
+
+  const entradasTaxasCaminhao = Object.entries(taxasPorCaminhao).filter(
+    ([, cfg]) => cfg && cfg.ativa && cfg.percentual > 0
   );
 
   return (
@@ -693,7 +742,7 @@ export function ModalTabelaPrecos({
               )}
             </div>
 
-            {/* Bloco 3: Carreta Alugada */}
+            {/* Bloco 3: Carreta Alugada (Geral + Por Caminhão) */}
             <div className="bg-slate-50/70 dark:bg-slate-950/50 rounded-xl border border-slate-200/80 dark:border-slate-800 p-5 space-y-4">
               <div className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-2.5">
@@ -704,7 +753,7 @@ export function ModalTabelaPrecos({
                     </h3>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
                       Não é descontado do valor da viagem cobrado de{' '}
-                      <strong>{entidadeNome}</strong>; registra a porcentagem referente ao aluguel da carreta.
+                      <strong>{entidadeNome}</strong>; você pode definir um percentual geral ou taxas específicas por caminhão.
                     </p>
                   </div>
                 </div>
@@ -716,14 +765,14 @@ export function ModalTabelaPrecos({
                     onChange={(e) => setCarretaAlugadaAtiva(e.target.checked)}
                     className="rounded border-slate-300 text-brand-500 focus:ring-brand-500"
                   />
-                  Carreta alugada
+                  Aluguel geral ativo
                 </label>
               </div>
 
               {carretaAlugadaAtiva && (
                 <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 max-w-sm">
                   <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                    Porcentagem do Aluguel (% sobre o valor da viagem) *
+                    Porcentagem Padrão do Aluguel (% sobre o valor da viagem) *
                   </label>
                   <input
                     type="number"
@@ -737,6 +786,117 @@ export function ModalTabelaPrecos({
                   />
                 </div>
               )}
+
+              {/* Taxa específica por caminhão */}
+              <div className="pt-3 border-t border-slate-200/70 dark:border-slate-800/80 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Truck className="w-4 h-4 text-brand-500" />
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                    Taxa de Aluguel por Caminhão Específico
+                  </h4>
+                </div>
+
+                <form
+                  onSubmit={handleSalvarTaxaCaminhao}
+                  className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end bg-white dark:bg-slate-900 p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-800"
+                >
+                  <div className="sm:col-span-6">
+                    <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                      Caminhão *
+                    </label>
+                    <select
+                      value={caminhaoTaxaId}
+                      onChange={(e) => setCaminhaoTaxaId(e.target.value)}
+                      className="w-full h-9 px-3 rounded-lg text-sm bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white focus:outline-none focus:border-brand-500"
+                    >
+                      {caminhoes.length === 0 ? (
+                        <option value="">Nenhum caminhão cadastrado</option>
+                      ) : (
+                        caminhoes.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.nome} {c.placa ? `(${c.placa})` : ''}
+                          </option>
+                        ))
+                      )}
+                    </select>
+                  </div>
+
+                  <div className="sm:col-span-4">
+                    <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                      Taxa (%) *
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      min={0}
+                      max={100}
+                      placeholder="Ex: 15 ou 2.5"
+                      value={percentualCaminhaoInput}
+                      onChange={(e) =>
+                        setPercentualCaminhaoInput(e.target.value)
+                      }
+                      className="w-full h-9 px-3 rounded-lg text-sm font-mono bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white focus:outline-none focus:border-brand-500"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <button
+                      type="submit"
+                      className="w-full h-9 px-3 rounded-lg text-xs font-semibold bg-brand-500 hover:bg-brand-600 text-brand-contrast inline-flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Definir
+                    </button>
+                  </div>
+                </form>
+
+                {entradasTaxasCaminhao.length > 0 && (
+                  <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                          <th className="py-2 px-4">Caminhão</th>
+                          <th className="py-2 px-4">Taxa de Aluguel</th>
+                          <th className="py-2 px-4 text-right">Ação</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 text-sm">
+                        {entradasTaxasCaminhao.map(([camId, cfg]) => {
+                          const cam = caminhoes.find(
+                            (c) => String(c.id) === String(camId)
+                          );
+                          const rotuloCam = cam
+                            ? `${cam.nome}${cam.placa ? ` (${cam.placa})` : ''}`
+                            : `Caminhão #${camId}`;
+                          return (
+                            <tr
+                              key={camId}
+                              className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40"
+                            >
+                              <td className="py-2 px-4 font-medium text-slate-800 dark:text-slate-200">
+                                {rotuloCam}
+                              </td>
+                              <td className="py-2 px-4 font-mono font-semibold text-amber-600 dark:text-amber-400">
+                                {cfg.percentual}%
+                              </td>
+                              <td className="py-2 px-4 text-right">
+                                <button
+                                  type="button"
+                                  onClick={() => removerTaxaCaminhao(camId)}
+                                  title="Remover taxa do caminhão"
+                                  className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors cursor-pointer"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Bloco 4: Datas de Recebimento (Boi Gordo vs Boi Magro) */}
@@ -969,6 +1129,24 @@ export function ModalTabelaPrecos({
                 />
               </div>
 
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                  Caminhão (para testar taxa)
+                </label>
+                <select
+                  value={caminhaoSimulacaoId}
+                  onChange={(e) => setCaminhaoSimulacaoId(e.target.value)}
+                  className="w-full h-9 px-2.5 rounded-lg text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white focus:outline-none focus:border-brand-500"
+                >
+                  <option value="">Padrão da tabela</option>
+                  {caminhoes.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.nome} {c.placa ? `(${c.placa})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div className="grid grid-cols-2 gap-2.5">
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
@@ -1013,12 +1191,22 @@ export function ModalTabelaPrecos({
                       </div>
 
                       {resultadoSimulacao.percentualAluguel > 0 && (
-                        <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
-                          <span className="text-slate-500 dark:text-slate-400">
-                            Aluguel Carreta ({resultadoSimulacao.percentualAluguel}%):
-                          </span>
-                          <span className="font-mono font-semibold text-amber-600 dark:text-amber-400">
-                            {formatarMoeda(resultadoSimulacao.valorAluguelCarreta)}
+                        <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1 text-xs">
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-500 dark:text-slate-400">
+                              Aluguel Carreta ({resultadoSimulacao.percentualAluguel}%):
+                            </span>
+                            <span className="font-mono font-semibold text-amber-600 dark:text-amber-400">
+                              {formatarMoeda(
+                                resultadoSimulacao.valorAluguelCarreta
+                              )}
+                            </span>
+                          </div>
+                          <span className="block text-[10px] text-slate-400">
+                            Origem:{' '}
+                            {resultadoSimulacao.origemTaxaAluguel === 'caminhao'
+                              ? 'Taxa específica do caminhão'
+                              : 'Percentual padrão da tabela'}
                           </span>
                         </div>
                       )}

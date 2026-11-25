@@ -16,10 +16,34 @@ import {
   Sun,
   Moon,
   Code2,
+  ChevronRight,
 } from 'lucide-react';
 import { carregarCorSalva } from '../theme';
 import { CommandPalette } from '../components/CommandPalette';
 import { DevModeProvider, useDevMode } from '../context/DevModeContext';
+import { lerWallet } from '../storage/walletStorage';
+
+function NotFoundPage() {
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[50vh] text-center space-y-4">
+      <div className="px-3 py-1 rounded-full text-xs font-mono font-bold bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+        404
+      </div>
+      <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+        Página não encontrada
+      </h2>
+      <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md">
+        O endereço acessado não existe ou foi movido.
+      </p>
+      <Link
+        to="/"
+        className="px-4 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-brand-contrast text-xs font-semibold transition-colors"
+      >
+        Voltar para o Início
+      </Link>
+    </div>
+  );
+}
 
 function RootShell() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -29,8 +53,22 @@ function RootShell() {
     return localStorage.getItem('bt_theme') === 'dark';
   });
 
+  const [saldoWallet, setSaldoWallet] = useState<number>(() => {
+    return lerWallet().saldo;
+  });
+
   useEffect(() => {
     carregarCorSalva();
+  }, []);
+
+  useEffect(() => {
+    const atualizarSaldo = () => setSaldoWallet(lerWallet().saldo);
+    window.addEventListener('storage', atualizarSaldo);
+    window.addEventListener('bt-wallet-updated', atualizarSaldo);
+    return () => {
+      window.removeEventListener('storage', atualizarSaldo);
+      window.removeEventListener('bt-wallet-updated', atualizarSaldo);
+    };
   }, []);
 
   useEffect(() => {
@@ -53,6 +91,12 @@ function RootShell() {
   ] as const;
 
   const isConfigActive = pathname === '/configuracoes';
+  const isWalletActive = pathname === '/wallet';
+
+  const saldoFormatado = saldoWallet.toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  });
 
   return (
     <div className="min-h-screen flex bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans transition-colors">
@@ -102,14 +146,42 @@ function RootShell() {
           })}
         </div>
 
-        <div className="p-4 m-3 rounded-xl bg-slate-900/90 border border-slate-800 text-xs space-y-2">
-          <div className="flex items-center justify-between text-slate-400">
-            <span>Frota Ativa</span>
-            <span className="text-white font-semibold">2 Caminhões</span>
-          </div>
-          <div className="flex items-center gap-2 text-slate-400 pt-1 border-t border-slate-800">
-            <FolderSync className="w-3.5 h-3.5 text-brand-500 shrink-0" />
-            <span className="truncate">Armazenamento Local</span>
+        <div className="px-3 pb-3 space-y-2.5">
+          {/* Card clicável do Saldo da Carteira -> /wallet */}
+          <Link
+            to="/wallet"
+            className={`block p-3.5 rounded-xl border transition-all group ${
+              isWalletActive
+                ? 'bg-brand-500/15 border-brand-500/40 shadow-xs'
+                : 'bg-slate-900/90 border-slate-800 hover:border-brand-500/40 hover:bg-slate-900'
+            }`}
+          >
+            <div className="flex items-center justify-between text-xs text-slate-400">
+              <span className="inline-flex items-center gap-1.5 font-medium">
+                <Wallet className="w-3.5 h-3.5 text-brand-400" />
+                Carteira
+              </span>
+              <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-brand-400 group-hover:translate-x-0.5 transition-all" />
+            </div>
+            <div
+              className={`mt-1.5 text-base font-mono font-bold tracking-tight ${
+                saldoWallet < 0 ? 'text-rose-400' : 'text-emerald-400'
+              }`}
+            >
+              {saldoFormatado}
+            </div>
+          </Link>
+
+          {/* Card Frota Ativa */}
+          <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 text-xs space-y-2">
+            <div className="flex items-center justify-between text-slate-400">
+              <span>Frota Ativa</span>
+              <span className="text-white font-semibold">2 Caminhões</span>
+            </div>
+            <div className="flex items-center gap-2 text-slate-400 pt-1 border-t border-slate-800">
+              <FolderSync className="w-3.5 h-3.5 text-brand-500 shrink-0" />
+              <span className="truncate">Armazenamento Local</span>
+            </div>
           </div>
         </div>
       </aside>
@@ -176,4 +248,5 @@ function RootLayout() {
 
 export const rootRoute = createRootRoute({
   component: RootLayout,
+  notFoundComponent: NotFoundPage,
 });

@@ -6,6 +6,7 @@ import { despesasRoute } from './routers/despesas';
 import { financeiroRoute } from './routers/financeiro';
 import { cadastrosRoute } from './routers/cadastros';
 import { configuracoesRoute } from './routers/configuracoes';
+import { walletRoute } from './routers/wallet';
 
 const routeTree = rootRoute.addChildren([
   indexRoute,
@@ -14,6 +15,7 @@ const routeTree = rootRoute.addChildren([
   financeiroRoute,
   cadastrosRoute,
   configuracoesRoute,
+  walletRoute,
 ]);
 
 export const router = createRouter({

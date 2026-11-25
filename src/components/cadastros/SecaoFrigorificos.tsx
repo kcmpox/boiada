@@ -16,11 +16,11 @@ import type { Frigorifico } from '../../storage/cadastrosStorage';
 import type { TipoEntidadeTabela } from '../../storage/tabelasPrecoStorage';
 import {
   ModalEditarFrigorifico,
-  ModalEditarJson,
   UFS_BRASIL,
-} from '../CadastrosModals';
-import { ModalTabelaPrecos } from '../tabelas/ModalTabelaPrecos';
-import { ModalHistoricoTabelas } from '../tabelas/ModalHistoricoTabelas';
+} from './CadastrosModals';
+import { ModalEditarJsonCadastro } from '../json_editor/ModalEditarJsonCadastro';
+import { ModalTabelaPrecos } from './tabelas/ModalTabelaPrecos';
+import { ModalHistoricoTabelas } from './tabelas/ModalHistoricoTabelas';
 import { formatarTelefone } from '../../utils/formatters';
 import { useDevMode } from '../../context/DevModeContext';
 
@@ -312,8 +312,8 @@ export function SecaoFrigorificos({
       )}
 
       {frigorificoJsonEmEdicao && (
-        <ModalEditarJson
-          titulo={`JSON • ${frigorificoJsonEmEdicao.nome}`}
+        <ModalEditarJsonCadastro
+          tipo="frigorifico"
           registro={frigorificoJsonEmEdicao}
           onSalvar={handleSalvarEdicao}
           onFechar={() => setFrigorificoJsonEmEdicao(null)}

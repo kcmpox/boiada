@@ -1,14 +1,16 @@
 import { useState } from 'react';
 import { Check, Save } from 'lucide-react';
+import {
+  lerAnotacoes,
+  salvarAnotacoes,
+} from '../../storage/configuracoesStorage';
 
 export function SecaoAnotacoes() {
-  const [texto, setTexto] = useState<string>(() => {
-    return localStorage.getItem('bt_config_anotacoes') || '';
-  });
+  const [texto, setTexto] = useState<string>(() => lerAnotacoes());
   const [salvoRecentemente, setSalvoRecentemente] = useState(false);
 
   const handleSalvar = () => {
-    localStorage.setItem('bt_config_anotacoes', texto);
+    salvarAnotacoes(texto);
     setSalvoRecentemente(true);
     setTimeout(() => setSalvoRecentemente(false), 2000);
   };

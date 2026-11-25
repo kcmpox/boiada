@@ -1,19 +1,22 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Plus } from 'lucide-react';
-import { EmConstrucao } from '../../EmConstrucao';
+import { Plus, Fuel } from 'lucide-react';
 import {
   type Abastecimento,
   lerAbastecimentos,
   alternarArquivamentoAbastecimento,
+  excluirAbastecimentosPorIds,
 } from '../../../storage/abastecimentosStorage';
 import * as cadastrosStorage from '../../../storage/cadastrosStorage';
 import * as viagensStorage from '../../../storage/viagensStorage';
+import { Paginacao } from '../../Paginacao';
 import { ModalNovoAbastecimento } from './ModalNovoAbastecimento';
-import { ModalEditarJsonAbastecimento } from './ModalEditarJsonAbastecimento';
+import { ModalEditarJsonAbastecimento } from '../../json_editor/ModalEditarJsonAbastecimento';
 import {
   CardAbastecimento,
   agruparAbastecimentosPorResponsavel,
 } from './CardAbastecimento';
+
+const ITENS_POR_PAGINA = 10;
 
 function extrairColecao(
   modulo: Record<string, unknown>,
@@ -66,6 +69,7 @@ export function TodosAbastecimentos() {
   const [abastecimentoJsonEmEdicao, setAbastecimentoJsonEmEdicao] =
     useState<Abastecimento | null>(null);
   const [abastecimentos, setAbastecimentos] = useState<Abastecimento[]>([]);
+  const [paginaAtual, setPaginaAtual] = useState(1);
 
   const carregar = () => {
     const ativos = lerAbastecimentos()
@@ -168,6 +172,23 @@ export function TodosAbastecimentos() {
     [abastecimentos]
   );
 
+  const totalPaginas = Math.max(
+    1,
+    Math.ceil(gruposCards.length / ITENS_POR_PAGINA)
+  );
+  const paginaSegura = Math.min(paginaAtual, totalPaginas);
+
+  useEffect(() => {
+    if (paginaAtual > totalPaginas) {
+      setPaginaAtual(totalPaginas);
+    }
+  }, [paginaAtual, totalPaginas]);
+
+  const gruposPaginados = useMemo(() => {
+    const inicio = (paginaSegura - 1) * ITENS_POR_PAGINA;
+    return gruposCards.slice(inicio, inicio + ITENS_POR_PAGINA);
+  }, [gruposCards, paginaSegura]);
+
   const abrirNovo = () => {
     setAbastecimentoEmEdicao(null);
     setModalAberto(true);
@@ -180,6 +201,11 @@ export function TodosAbastecimentos() {
 
   const handleArquivar = (ab: Abastecimento) => {
     alternarArquivamentoAbastecimento(ab.id, true);
+    carregar();
+  };
+
+  const handleExcluir = (itens: Abastecimento[]) => {
+    excluirAbastecimentosPorIds(itens.map((item) => item.id));
     carregar();
   };
 
@@ -209,13 +235,20 @@ export function TodosAbastecimentos() {
 
       {/* Lista de cards ou estado vazio */}
       {gruposCards.length === 0 ? (
-        <EmConstrucao
-          titulo="Nenhum abastecimento lançado ainda"
-          descricao="Clique em 'Novo Abastecimento' acima para registrar notas de combustível, descontos e vínculos com viagens."
-        />
+        <div className="flex flex-col items-center justify-center min-h-[38vh] border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/40 dark:bg-slate-900/30 rounded-xl p-8 text-center">
+          <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 mb-3">
+            <Fuel className="w-6 h-6" />
+          </div>
+          <h4 className="text-base font-bold text-slate-900 dark:text-white">
+            Nenhum abastecimento registrado
+          </h4>
+          <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md mt-1">
+            Clique em &ldquo;Novo Abastecimento&rdquo; acima para lançar a primeira nota de combustível.
+          </p>
+        </div>
       ) : (
         <div className="space-y-3.5">
-          {gruposCards.map((grupo) => {
+          {gruposPaginados.map((grupo) => {
             const ab = grupo.abastecimento;
             return (
               <CardAbastecimento
@@ -236,9 +269,17 @@ export function TodosAbastecimentos() {
                 onEditar={abrirEdicao}
                 onEditarJson={(item) => setAbastecimentoJsonEmEdicao(item)}
                 onArquivar={handleArquivar}
+                onExcluir={() => handleExcluir(grupo.itens)}
               />
             );
           })}
+
+          <Paginacao
+            paginaAtual={paginaSegura}
+            totalItens={gruposCards.length}
+            itensPorPagina={ITENS_POR_PAGINA}
+            onMudarPagina={setPaginaAtual}
+          />
         </div>
       )}
 
@@ -249,7 +290,10 @@ export function TodosAbastecimentos() {
           setModalAberto(false);
           setAbastecimentoEmEdicao(null);
         }}
-        onSalvo={carregar}
+        onSalvo={() => {
+          setPaginaAtual(1);
+          carregar();
+        }}
       />
 
       <ModalEditarJsonAbastecimento

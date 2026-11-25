@@ -3,7 +3,7 @@ import { X, Code2, Check, Wand2, AlertCircle } from 'lucide-react';
 import {
   type Abastecimento,
   salvarAbastecimentoJson,
-} from '../../../storage/abastecimentosStorage';
+} from '../../storage/abastecimentosStorage';
 
 interface ModalEditarJsonAbastecimentoProps {
   abastecimento: Abastecimento | null;

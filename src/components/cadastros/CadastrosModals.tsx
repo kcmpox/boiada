@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pencil, X, Check, Code2, AlertCircle, Wallet } from 'lucide-react';
+import { Pencil, X, Check, Wallet } from 'lucide-react';
 import type {
   Motorista,
   Caminhao,
@@ -7,8 +7,8 @@ import type {
   DirecaoPedagio,
   Frigorifico,
   Intermediario,
-} from '../storage/cadastrosStorage';
-import { formatarTelefone } from '../utils/formatters';
+} from '../../storage/cadastrosStorage';
+import { formatarTelefone } from '../../utils/formatters';
 
 export const UFS_BRASIL = [
   'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO',
@@ -980,114 +980,6 @@ export function ModalEditarIntermediario({
             >
               <Check className="w-4 h-4" />
               Salvar Alterações
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-// ============================================================================
-// POPUP: EDITAR JSON BRUTO (DEVMODE)
-// ============================================================================
-export function ModalEditarJson<T extends { id: string }>({
-  titulo,
-  registro,
-  onSalvar,
-  onFechar,
-}: {
-  titulo: string;
-  registro: T;
-  onSalvar: (registroAtualizado: T) => void;
-  onFechar: () => void;
-}) {
-  const [jsonTexto, setJsonTexto] = useState(() =>
-    JSON.stringify(registro, null, 2)
-  );
-  const [erroJson, setErroJson] = useState('');
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const parsed = JSON.parse(jsonTexto);
-      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-        throw new Error('O conteúdo precisa ser um objeto JSON válido.');
-      }
-      onSalvar({ ...parsed, id: parsed.id || registro.id });
-    } catch (err) {
-      setErroJson(
-        err instanceof Error ? err.message : 'Sintaxe JSON inválida.'
-      );
-    }
-  };
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs"
-      onClick={onFechar}
-    >
-      <div
-        className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-purple-50 dark:bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-600 dark:text-purple-400">
-              <Code2 className="w-4 h-4" />
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                {titulo}
-              </h3>
-              <p className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
-                DevMode • Edição direta no localStorage
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onFechar}
-            aria-label="Fechar popup"
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <textarea
-            rows={12}
-            spellCheck={false}
-            value={jsonTexto}
-            onChange={(e) => {
-              setJsonTexto(e.target.value);
-              if (erroJson) setErroJson('');
-            }}
-            className="w-full p-3.5 rounded-xl text-xs font-mono bg-slate-950 text-emerald-400 border border-slate-800 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 leading-relaxed"
-          />
-
-          {erroJson && (
-            <div className="flex items-center gap-2 text-xs font-medium px-3 py-2 rounded-lg bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 text-red-600 dark:text-red-400">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{erroJson}</span>
-            </div>
-          )}
-
-          <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
-            <button
-              type="button"
-              onClick={onFechar}
-              className="h-9 px-4 rounded-lg text-xs font-semibold border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              className="h-9 px-4 rounded-lg text-xs font-semibold bg-purple-600 hover:bg-purple-700 text-white shadow-xs inline-flex items-center gap-1.5 transition-colors cursor-pointer"
-            >
-              <Check className="w-4 h-4" />
-              Aplicar JSON
             </button>
           </div>
         </form>

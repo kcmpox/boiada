@@ -1,18 +1,16 @@
 import { useState } from 'react';
 import { Check } from 'lucide-react';
+import { PALETAS_CORES, type BrandColorId } from '../../theme';
 import {
-  PALETAS_CORES,
-  aplicarCorSistema,
-  carregarCorSalva,
-  type BrandColorId,
-} from '../../theme';
+  lerCorPrincipal,
+  salvarCorPrincipal,
+} from '../../storage/configuracoesStorage';
 
 export function SecaoAparencia() {
-  const [corAtual, setCorAtual] = useState<BrandColorId>(() => carregarCorSalva());
+  const [corAtual, setCorAtual] = useState<BrandColorId>(() => lerCorPrincipal());
 
   const handleSelecionarCor = (id: BrandColorId) => {
-    setCorAtual(id);
-    aplicarCorSistema(id);
+    setCorAtual(salvarCorPrincipal(id));
   };
 
   return (

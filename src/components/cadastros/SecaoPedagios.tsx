@@ -12,9 +12,9 @@ import {
 import type { Pedagio, DirecaoPedagio } from '../../storage/cadastrosStorage';
 import {
   ModalEditarPedagio,
-  ModalEditarJson,
   DIRECOES_PEDAGIO,
-} from '../CadastrosModals';
+} from './CadastrosModals';
+import { ModalEditarJsonCadastro } from '../json_editor/ModalEditarJsonCadastro';
 import { useDevMode } from '../../context/DevModeContext';
 
 export function SecaoPedagios({
@@ -291,10 +291,10 @@ export function SecaoPedagios({
           onFechar={() => setPedagioEmEdicao(null)}
         />
       )}
-
-      {pedagioJsonEmEdicao && (
-        <ModalEditarJson
-          titulo={`JSON • ${pedagioJsonEmEdicao.nome}`}
+	  
+	  {pedagioJsonEmEdicao && (
+        <ModalEditarJsonCadastro
+          tipo="pedagio"
           registro={pedagioJsonEmEdicao}
           onSalvar={handleSalvarEdicao}
           onFechar={() => setPedagioJsonEmEdicao(null)}

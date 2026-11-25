@@ -12,8 +12,8 @@ import type { Motorista } from '../../storage/cadastrosStorage';
 import {
   ModalEditarMotorista,
   ModalAjudaCustoMotorista,
-  ModalEditarJson,
-} from '../CadastrosModals';
+} from './CadastrosModals';
+import { ModalEditarJsonCadastro } from '../json_editor/ModalEditarJsonCadastro';
 import { formatarTelefone } from '../../utils/formatters';
 import { useDevMode } from '../../context/DevModeContext';
 
@@ -235,8 +235,8 @@ export function SecaoMotoristas({
       )}
 
       {motoristaJsonEmEdicao && (
-        <ModalEditarJson
-          titulo={`JSON • ${motoristaJsonEmEdicao.nome}`}
+        <ModalEditarJsonCadastro
+          tipo="motorista"
           registro={motoristaJsonEmEdicao}
           onSalvar={handleSalvarEdicao}
           onFechar={() => setMotoristaJsonEmEdicao(null)}

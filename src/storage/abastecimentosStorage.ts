@@ -36,6 +36,8 @@ export interface Abastecimento {
 }
 
 const STORAGE_KEY = 'bacchiega_abastecimentos_v1';
+const VIAGENS_CONFIRMADAS_SEM_ABASTECIMENTO_KEY =
+  'bacchiega_viagens_sem_abastecimento_confirmadas_v1';
 
 export function lerAbastecimentos(): Abastecimento[] {
   try {
@@ -101,6 +103,26 @@ export function alternarArquivamentoAbastecimento(
   window.dispatchEvent(new Event('storage'));
 }
 
+export function salvarAbastecimentoJson(
+  idOriginal: string,
+  objetoEditado: Abastecimento
+): Abastecimento {
+  const lista = lerAbastecimentos();
+  const registroFinal: Abastecimento = {
+    ...objetoEditado,
+    id: String(objetoEditado.id || idOriginal),
+    atualizadoEm: new Date().toISOString(),
+  };
+
+  const novaLista = lista.map((item) =>
+    String(item.id) === String(idOriginal) ? registroFinal : item
+  );
+
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(novaLista));
+  window.dispatchEvent(new Event('storage'));
+  return registroFinal;
+}
+
 export function obterUltimoHodometroCaminhao(
   caminhaoId: string,
   ignorarAbastecimentoId?: string
@@ -134,22 +156,42 @@ export function obterViagensJaVinculadas(
   return ids;
 }
 
-export function salvarAbastecimentoJson(
-  idOriginal: string,
-  objetoEditado: Abastecimento
-): Abastecimento {
-  const lista = lerAbastecimentos();
-  const registroFinal: Abastecimento = {
-    ...objetoEditado,
-    id: String(objetoEditado.id || idOriginal),
-    atualizadoEm: new Date().toISOString(),
-  };
+export function lerViagensConfirmadasSemAbastecimento(): Set<string> {
+  try {
+    const raw = localStorage.getItem(VIAGENS_CONFIRMADAS_SEM_ABASTECIMENTO_KEY);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? new Set(parsed.map(String)) : new Set();
+  } catch {
+    return new Set();
+  }
+}
 
-  const novaLista = lista.map((item) =>
-    String(item.id) === String(idOriginal) ? registroFinal : item
+export function confirmarViagemSemAbastecimento(viagemId: string): void {
+  const atuais = lerViagensConfirmadasSemAbastecimento();
+  atuais.add(String(viagemId));
+  localStorage.setItem(
+    VIAGENS_CONFIRMADAS_SEM_ABASTECIMENTO_KEY,
+    JSON.stringify(Array.from(atuais))
   );
-
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(novaLista));
   window.dispatchEvent(new Event('storage'));
-  return registroFinal;
+}
+
+export function desconfirmarViagemSemAbastecimento(viagemId: string): void {
+  const atuais = lerViagensConfirmadasSemAbastecimento();
+  atuais.delete(String(viagemId));
+  localStorage.setItem(
+    VIAGENS_CONFIRMADAS_SEM_ABASTECIMENTO_KEY,
+    JSON.stringify(Array.from(atuais))
+  );
+  window.dispatchEvent(new Event('storage'));
+}
+
+export function excluirAbastecimentosPorIds(ids: string[]): void {
+  const conjunto = new Set(ids);
+  const atual = lerAbastecimentos();
+  const restante = atual.filter((item) => !conjunto.has(item.id));
+  // Use aqui a mesma chave/função de gravação do seu abastecimentosStorage.ts
+  localStorage.setItem('bt_despesas_abastecimentos', JSON.stringify(restante));
+  window.dispatchEvent(new Event('storage'));
 }

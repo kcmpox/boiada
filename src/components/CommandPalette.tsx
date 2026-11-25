@@ -48,7 +48,7 @@ export function CommandPalette({
   onChangeDevMode,
 }: CommandPaletteProps) {
   const [aberto, setAberto] = useState(false);
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState('/');
   const [erro, setErro] = useState('');
   const inputRef = useRef<HTMLInputElement | null>(null);
 
@@ -70,7 +70,7 @@ export function CommandPalette({
 
         if (!isEditable) {
           e.preventDefault();
-          setInput('');
+          setInput('/');
           setErro('');
           setAberto(true);
         }
@@ -83,7 +83,13 @@ export function CommandPalette({
 
   useEffect(() => {
     if (aberto) {
-      setTimeout(() => inputRef.current?.focus(), 10);
+      setTimeout(() => {
+        const el = inputRef.current;
+        if (el) {
+          el.focus();
+          el.setSelectionRange(el.value.length, el.value.length);
+        }
+      }, 10);
     }
   }, [aberto]);
 

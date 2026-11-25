@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   Plus,
   Truck,
@@ -28,10 +28,13 @@ import {
   listarFrigorificos,
   listarIntermediarios,
 } from '../../storage/cadastrosStorage';
+import { Paginacao } from '../Paginacao';
 import { ModalNovaViagem } from './ModalNovaViagem';
 import { ModalEditarValorBrutoViagem } from './ModalEditarValorBrutoViagem';
-import { ModalEditarJson } from '../CadastrosModals';
+import { ModalEditarJsonViagem } from '../json_editor/ModalEditarJsonViagem';
 import { useDevMode } from '../../context/DevModeContext';
+
+const ITENS_POR_PAGINA = 10;
 
 function formatarMoeda(valor: number): string {
   return valor.toLocaleString('pt-BR', {
@@ -50,6 +53,7 @@ function formatarDataBr(isoDate: string): string {
 export function SecaoViagensAtivas() {
   const { devMode } = useDevMode();
   const [viagens, setViagens] = useState<Viagem[]>(() => listarViagens());
+  const [paginaAtual, setPaginaAtual] = useState(1);
   const [modalNovaAberta, setModalNovaAberta] = useState(false);
   const [viagemEmEdicao, setViagemEmEdicao] = useState<Viagem | null>(null);
   const [viagemValorBrutoEmEdicao, setViagemValorBrutoEmEdicao] =
@@ -63,10 +67,28 @@ export function SecaoViagensAtivas() {
   const frigorificos = useMemo(() => listarFrigorificos(), []);
   const intermediarios = useMemo(() => listarIntermediarios(), []);
 
+  const totalPaginas = Math.max(
+    1,
+    Math.ceil(viagens.length / ITENS_POR_PAGINA)
+  );
+  const paginaSegura = Math.min(paginaAtual, totalPaginas);
+
+  useEffect(() => {
+    if (paginaAtual > totalPaginas) {
+      setPaginaAtual(totalPaginas);
+    }
+  }, [paginaAtual, totalPaginas]);
+
+  const viagensPaginadas = useMemo(() => {
+    const inicio = (paginaSegura - 1) * ITENS_POR_PAGINA;
+    return viagens.slice(inicio, inicio + ITENS_POR_PAGINA);
+  }, [viagens, paginaSegura]);
+
   const handleAdicionarViagem = (nova: Viagem) => {
     const atualizada = [nova, ...viagens];
     setViagens(atualizada);
     salvarViagens(atualizada);
+    setPaginaAtual(1);
     setModalNovaAberta(false);
   };
 
@@ -150,213 +172,222 @@ export function SecaoViagensAtivas() {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4">
-          {viagens.map((v) => {
-            const caminhao = obterCaminhao(v.caminhaoId);
-            const frigResponsavel = obterNomeFrigorifico(v.frigorificoId);
-            const liquido =
-              v.valorLiquidoViagem !== undefined
-                ? v.valorLiquidoViagem
-                : v.valorViagem - v.valorAluguelCarreta;
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-4">
+            {viagensPaginadas.map((v) => {
+              const caminhao = obterCaminhao(v.caminhaoId);
+              const frigResponsavel = obterNomeFrigorifico(v.frigorificoId);
+              const liquido =
+                v.valorLiquidoViagem !== undefined
+                  ? v.valorLiquidoViagem
+                  : v.valorViagem - v.valorAluguelCarreta;
 
-            return (
-              <div
-                key={v.id}
-                className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-800 p-5 shadow-xs space-y-4"
-              >
-                {/* Linha Superior: Badges + Data + Rota + Ações */}
-                <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-100 dark:border-slate-800/80 pb-3.5">
-                  <div className="space-y-1.5">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wide ${
-                          v.tipoGado === 'boi_gordo'
-                            ? 'bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300'
-                            : 'bg-sky-100 text-sky-800 dark:bg-sky-500/15 dark:text-sky-300'
-                        }`}
-                      >
-                        {v.tipoGado === 'boi_gordo' ? 'Boi Gordo' : 'Boi Magro'}
-                      </span>
+              return (
+                <div
+                  key={v.id}
+                  className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-800 p-5 shadow-xs space-y-4"
+                >
+                  {/* Linha Superior: Badges + Data + Rota + Ações */}
+                  <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-100 dark:border-slate-800/80 pb-3.5">
+                    <div className="space-y-1.5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wide ${
+                            v.tipoGado === 'boi_gordo'
+                              ? 'bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300'
+                              : 'bg-sky-100 text-sky-800 dark:bg-sky-500/15 dark:text-sky-300'
+                          }`}
+                        >
+                          {v.tipoGado === 'boi_gordo' ? 'Boi Gordo' : 'Boi Magro'}
+                        </span>
 
-                      <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-600 dark:text-slate-300">
-                        <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                        {formatarDataBr(v.data)}
-                      </span>
+                        <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-600 dark:text-slate-300">
+                          <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                          {formatarDataBr(v.data)}
+                        </span>
 
-                      <span className="text-xs text-slate-300 dark:text-slate-700">
-                        •
-                      </span>
+                        <span className="text-xs text-slate-300 dark:text-slate-700">
+                          •
+                        </span>
 
-                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-800 dark:text-slate-200">
-                        <Truck className="w-3.5 h-3.5 text-brand-500" />
-                        {caminhao
-                          ? `${caminhao.nome} (${caminhao.placa})`
-                          : 'Caminhão removido'}
-                      </span>
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-800 dark:text-slate-200">
+                          <Truck className="w-3.5 h-3.5 text-brand-500" />
+                          {caminhao
+                            ? `${caminhao.nome} (${caminhao.placa})`
+                            : 'Caminhão removido'}
+                        </span>
 
-                      <span className="inline-flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
-                        <User className="w-3.5 h-3.5" />
-                        {obterNomeMotorista(v.motoristaId)}
-                      </span>
+                        <span className="inline-flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
+                          <User className="w-3.5 h-3.5" />
+                          {obterNomeMotorista(v.motoristaId)}
+                        </span>
+                      </div>
+
+                      {/* Embarque -> Desembarque */}
+                      <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white pt-0.5">
+                        <MapPin className="w-4 h-4 text-brand-500 shrink-0" />
+                        <span>{v.localEmbarque}</span>
+                        {v.localDesembarque && (
+                          <>
+                            <span className="text-slate-400">→</span>
+                            <span>{v.localDesembarque}</span>
+                          </>
+                        )}
+                      </div>
                     </div>
 
-                    {/* Embarque -> Desembarque */}
-                    <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white pt-0.5">
-                      <MapPin className="w-4 h-4 text-brand-500 shrink-0" />
-                      <span>{v.localEmbarque}</span>
-                      {v.localDesembarque && (
-                        <>
-                          <span className="text-slate-400">→</span>
-                          <span>{v.localDesembarque}</span>
-                        </>
+                    {/* Botões de Ação */}
+                    <div className="flex items-center gap-1 ml-auto">
+                      {v.tipoGado === 'boi_magro' && (
+                        <button
+                          type="button"
+                          onClick={() => setViagemValorBrutoEmEdicao(v)}
+                          title="Editar valor bruto (Boi Magro)"
+                          aria-label="Editar valor bruto"
+                          className="p-2 rounded-lg text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-500/10 transition-colors cursor-pointer"
+                        >
+                          <DollarSign className="w-4 h-4" />
+                        </button>
+                      )}
+
+                      {devMode && (
+                        <button
+                          type="button"
+                          onClick={() => setViagemJsonEmEdicao(v)}
+                          title="Editar JSON (DevMode)"
+                          className="p-2 rounded-lg text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-500/10 transition-colors cursor-pointer"
+                        >
+                          <Code2 className="w-4 h-4" />
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => setViagemEmEdicao(v)}
+                        title="Editar viagem"
+                        className="p-2 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleArquivar(v.id)}
+                        title="Arquivar viagem"
+                        aria-label="Arquivar viagem"
+                        className="p-2 rounded-lg text-slate-500 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-colors cursor-pointer"
+                      >
+                        <Archive className="w-4 h-4" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => excluirViagem(v.id)}
+                        title="Excluir viagem"
+                        className="p-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors cursor-pointer"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Bloco Financeiro do Card */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3.5 rounded-xl bg-slate-50/80 dark:bg-slate-950/50 border border-slate-200/60 dark:border-slate-800/80">
+                    <div>
+                      <div className="text-[11px] font-semibold text-slate-400 uppercase">
+                        Valor Bruto
+                      </div>
+                      <div className="text-sm font-mono font-bold text-slate-800 dark:text-slate-200 mt-0.5">
+                        {formatarMoeda(v.valorViagem)}
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="text-[11px] font-semibold text-slate-400 uppercase">
+                        Aluguel Carreta ({v.percentualAluguelCarreta}%)
+                      </div>
+                      <div className="text-sm font-mono font-semibold text-amber-600 dark:text-amber-400 mt-0.5">
+                        {v.valorAluguelCarreta > 0
+                          ? `- ${formatarMoeda(v.valorAluguelCarreta)}`
+                          : formatarMoeda(0)}
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="text-[11px] font-semibold text-slate-400 uppercase">
+                        Valor Líquido
+                      </div>
+                      <div className="text-sm font-mono font-extrabold text-brand-600 dark:text-brand-400 mt-0.5">
+                        {formatarMoeda(liquido)}
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="text-[11px] font-semibold text-slate-400 uppercase flex items-center gap-1">
+                        <CalendarCheck className="w-3 h-3 text-emerald-500" />
+                        Prev. Recebimento
+                      </div>
+                      <div className="text-sm font-mono font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">
+                        {v.dataPrevistaRecebimento
+                          ? formatarDataBr(v.dataPrevistaRecebimento)
+                          : 'Não definida'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Linha Inferior: Pagador, KM, Frigorífico e Documentos */}
+                  <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 text-xs text-slate-500 dark:text-slate-400">
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                      <span className="inline-flex items-center gap-1.5 font-medium text-slate-700 dark:text-slate-300">
+                        <Wallet className="w-3.5 h-3.5 text-brand-500" />
+                        Pagador: <strong>{obterNomePagador(v)}</strong>
+                      </span>
+
+                      <span className="inline-flex items-center gap-1.5 font-mono">
+                        <Route className="w-3.5 h-3.5 text-slate-400" />
+                        {v.kmInformado} km (
+                        {v.baseKmInformada === 'ida_volta'
+                          ? 'Ida e Volta'
+                          : 'Só Ida'}
+                        )
+                      </span>
+
+                      {frigResponsavel && (
+                        <span className="inline-flex items-center gap-1.5">
+                          <Factory className="w-3.5 h-3.5 text-slate-400" />
+                          Frig.: {frigResponsavel}
+                        </span>
+                      )}
+
+                      {v.pecuarista && <span>Pecuarista: {v.pecuarista}</span>}
+                    </div>
+
+                    <div className="flex items-center gap-3 font-mono text-[11px]">
+                      {v.cte && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                          <FileText className="w-3 h-3" />
+                          CTe: {v.cte}
+                        </span>
+                      )}
+                      {v.minuta && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                          <FileText className="w-3 h-3" />
+                          Minuta: {v.minuta}
+                        </span>
                       )}
                     </div>
                   </div>
-
-                  {/* Botões de Ação */}
-                  <div className="flex items-center gap-1 ml-auto">
-                    {v.tipoGado === 'boi_magro' && (
-                      <button
-                        type="button"
-                        onClick={() => setViagemValorBrutoEmEdicao(v)}
-                        title="Editar valor bruto (Boi Magro)"
-                        aria-label="Editar valor bruto"
-                        className="p-2 rounded-lg text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-500/10 transition-colors cursor-pointer"
-                      >
-                        <DollarSign className="w-4 h-4" />
-                      </button>
-                    )}
-
-                    {devMode && (
-                      <button
-                        type="button"
-                        onClick={() => setViagemJsonEmEdicao(v)}
-                        title="Editar JSON (DevMode)"
-                        className="p-2 rounded-lg text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-500/10 transition-colors cursor-pointer"
-                      >
-                        <Code2 className="w-4 h-4" />
-                      </button>
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={() => setViagemEmEdicao(v)}
-                      title="Editar viagem"
-                      className="p-2 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleArquivar(v.id)}
-                      title="Arquivar viagem"
-                      aria-label="Arquivar viagem"
-                      className="p-2 rounded-lg text-slate-500 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-colors cursor-pointer"
-                    >
-                      <Archive className="w-4 h-4" />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => excluirViagem(v.id)}
-                      title="Excluir viagem"
-                      className="p-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors cursor-pointer"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
                 </div>
+              );
+            })}
+          </div>
 
-                {/* Bloco Financeiro do Card */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3.5 rounded-xl bg-slate-50/80 dark:bg-slate-950/50 border border-slate-200/60 dark:border-slate-800/80">
-                  <div>
-                    <div className="text-[11px] font-semibold text-slate-400 uppercase">
-                      Valor Bruto
-                    </div>
-                    <div className="text-sm font-mono font-bold text-slate-800 dark:text-slate-200 mt-0.5">
-                      {formatarMoeda(v.valorViagem)}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="text-[11px] font-semibold text-slate-400 uppercase">
-                      Aluguel Carreta ({v.percentualAluguelCarreta}%)
-                    </div>
-                    <div className="text-sm font-mono font-semibold text-amber-600 dark:text-amber-400 mt-0.5">
-                      {v.valorAluguelCarreta > 0
-                        ? `- ${formatarMoeda(v.valorAluguelCarreta)}`
-                        : formatarMoeda(0)}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="text-[11px] font-semibold text-slate-400 uppercase">
-                      Valor Líquido
-                    </div>
-                    <div className="text-sm font-mono font-extrabold text-brand-600 dark:text-brand-400 mt-0.5">
-                      {formatarMoeda(liquido)}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="text-[11px] font-semibold text-slate-400 uppercase flex items-center gap-1">
-                      <CalendarCheck className="w-3 h-3 text-emerald-500" />
-                      Prev. Recebimento
-                    </div>
-                    <div className="text-sm font-mono font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">
-                      {v.dataPrevistaRecebimento
-                        ? formatarDataBr(v.dataPrevistaRecebimento)
-                        : 'Não definida'}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Linha Inferior: Pagador, KM, Frigorífico e Documentos */}
-                <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 text-xs text-slate-500 dark:text-slate-400">
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
-                    <span className="inline-flex items-center gap-1.5 font-medium text-slate-700 dark:text-slate-300">
-                      <Wallet className="w-3.5 h-3.5 text-brand-500" />
-                      Pagador: <strong>{obterNomePagador(v)}</strong>
-                    </span>
-
-                    <span className="inline-flex items-center gap-1.5 font-mono">
-                      <Route className="w-3.5 h-3.5 text-slate-400" />
-                      {v.kmInformado} km (
-                      {v.baseKmInformada === 'ida_volta'
-                        ? 'Ida e Volta'
-                        : 'Só Ida'}
-                      )
-                    </span>
-
-                    {frigResponsavel && (
-                      <span className="inline-flex items-center gap-1.5">
-                        <Factory className="w-3.5 h-3.5 text-slate-400" />
-                        Frig.: {frigResponsavel}
-                      </span>
-                    )}
-
-                    {v.pecuarista && <span>Pecuarista: {v.pecuarista}</span>}
-                  </div>
-
-                  <div className="flex items-center gap-3 font-mono text-[11px]">
-                    {v.cte && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                        <FileText className="w-3 h-3" />
-                        CTe: {v.cte}
-                      </span>
-                    )}
-                    {v.minuta && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                        <FileText className="w-3 h-3" />
-                        Minuta: {v.minuta}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+          <Paginacao
+            paginaAtual={paginaSegura}
+            totalItens={viagens.length}
+            itensPorPagina={ITENS_POR_PAGINA}
+            onMudarPagina={setPaginaAtual}
+          />
         </div>
       )}
 
@@ -387,14 +418,11 @@ export function SecaoViagensAtivas() {
       )}
 
       {/* Popup JSON DevMode */}
-      {viagemJsonEmEdicao && (
-        <ModalEditarJson
-          titulo={`JSON • Viagem ${formatarDataBr(viagemJsonEmEdicao.data)}`}
-          registro={viagemJsonEmEdicao}
-          onSalvar={handleSalvarEdicaoViagem}
-          onFechar={() => setViagemJsonEmEdicao(null)}
-        />
-      )}
+      <ModalEditarJsonViagem
+        viagem={viagemJsonEmEdicao}
+        onSalvar={handleSalvarEdicaoViagem}
+        onFechar={() => setViagemJsonEmEdicao(null)}
+      />
     </div>
   );
 }

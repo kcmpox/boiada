@@ -26,6 +26,7 @@ import {
   listarHistoricoTabelas,
   calcularFretePelaTabela,
   calcularDataRecebimento,
+  resolverTaxaAluguelCaminhao,
   type TipoEntidadeTabela,
   type BaseQuilometragemTabela,
   type TabelaPrecoEntidade,
@@ -88,12 +89,10 @@ export function ModalNovaViagem({
     viagemParaEditar?.tipoGado || 'boi_gordo'
   );
   const [caminhaoId, setCaminhaoId] = useState<string>(
-    viagemParaEditar?.caminhaoId || caminhoes[0]?.id || ''
+    viagemParaEditar?.caminhaoId || ''
   );
   const [motoristaId, setMotoristaId] = useState<string>(
-    viagemParaEditar
-      ? viagemParaEditar.motoristaId
-      : caminhoes[0]?.motoristaId || ''
+    viagemParaEditar?.motoristaId || ''
   );
 
   // Bloco 2: Data, Locais e Documentação
@@ -121,7 +120,7 @@ export function ModalNovaViagem({
       viagemParaEditar?.baseKmInformada || 'ida_volta'
     );
   const [modoDistancia, setModoDistancia] = useState<ModoDistanciaViagem>(
-    viagemParaEditar?.modoDistancia || 'hodometro'
+    viagemParaEditar?.modoDistancia || 'manual'
   );
   const [hodometroInicial, setHodometroInicial] = useState(
     viagemParaEditar?.hodometroInicial !== null &&
@@ -147,8 +146,6 @@ export function ModalNovaViagem({
     if (viagemParaEditar) {
       return `${viagemParaEditar.pagadorTipo}:${viagemParaEditar.pagadorId}`;
     }
-    if (intermediarios[0]) return `intermediario:${intermediarios[0].id}`;
-    if (frigorificos[0]) return `frigorifico:${frigorificos[0].id}`;
     return '';
   });
   const [tabelaSelecionadaId, setTabelaSelecionadaId] = useState<string>(
@@ -165,10 +162,12 @@ export function ModalNovaViagem({
 
   const handleSelecionarCaminhao = (novoCaminhaoId: string) => {
     setCaminhaoId(novoCaminhaoId);
-    const encontrado = caminhoes.find((c) => c.id === novoCaminhaoId);
-    if (encontrado) {
-      setMotoristaId(encontrado.motoristaId || '');
+    if (!novoCaminhaoId) {
+      setMotoristaId('');
+      return;
     }
+    const encontrado = caminhoes.find((c) => c.id === novoCaminhaoId);
+    setMotoristaId(encontrado?.motoristaId || '');
   };
 
   const kmInformadoCalculado = useMemo(() => {
@@ -224,10 +223,10 @@ export function ModalNovaViagem({
     historico.forEach((h) => {
       lista.push({
         label: `Arquivada (${new Date(
-          h.dataInicioVigencia
-        ).toLocaleDateString('pt-BR')} a ${new Date(
           h.dataArquivamento
-        ).toLocaleDateString('pt-BR')} — ${h.motivoReajuste})`,
+        ).toLocaleDateString('pt-BR')}${
+          h.motivo ? ` — ${h.motivo}` : ''
+        })`,
         tabela: h.tabela,
       });
     });
@@ -245,32 +244,44 @@ export function ModalNovaViagem({
 
   const previsaoTabela = useMemo(() => {
     if (!tabelaAtivaParaCalculo || kmUmaPerna <= 0) return null;
-    return calcularFretePelaTabela(tabelaAtivaParaCalculo, kmUmaPerna);
-  }, [tabelaAtivaParaCalculo, kmUmaPerna]);
+    return calcularFretePelaTabela(
+      tabelaAtivaParaCalculo,
+      kmUmaPerna,
+      caminhaoId || undefined
+    );
+  }, [tabelaAtivaParaCalculo, kmUmaPerna, caminhaoId]);
+
+  const taxaResolvida = useMemo(() => {
+    if (!tabelaAtivaParaCalculo) {
+      return {
+        percentual: viagemParaEditar?.percentualAluguelCarreta ?? 0,
+        origem: 'nenhum' as const,
+      };
+    }
+    return resolverTaxaAluguelCaminhao(
+      tabelaAtivaParaCalculo,
+      caminhaoId || undefined
+    );
+  }, [tabelaAtivaParaCalculo, caminhaoId, viagemParaEditar?.percentualAluguelCarreta]);
 
   const previsaoDataRecebimento = useMemo(() => {
     if (!tabelaAtivaParaCalculo || !data) return null;
     return calcularDataRecebimento(tabelaAtivaParaCalculo, data, tipoGado);
   }, [tabelaAtivaParaCalculo, data, tipoGado]);
 
-  // Verifica se o valor calculado pela tabela diverge do valor salvo anteriormente na viagem
   const valorTabelaCalculado = previsaoTabela?.valor ?? 0;
   const haDivergenciaValorNaEdicao =
     isEdicao &&
     viagemParaEditar !== null &&
     Math.abs(valorTabelaCalculado - viagemParaEditar.valorViagem) > 0.009;
 
-  // Define o valor bruto final conforme escolha do usuário (manter valor anterior/manual ou usar tabela)
   const valorBrutoFinal =
     isEdicao && viagemParaEditar && !usarValorTabelaNaEdicao
       ? viagemParaEditar.valorViagem
       : valorTabelaCalculado;
 
   const percentualAluguelFinal =
-    previsaoTabela?.percentualAluguel ??
-    (tabelaAtivaParaCalculo?.carretaAlugada?.ativa
-      ? tabelaAtivaParaCalculo.carretaAlugada.percentual
-      : viagemParaEditar?.percentualAluguelCarreta ?? 0);
+    previsaoTabela?.percentualAluguel ?? taxaResolvida.percentual;
 
   const valorAluguelFinal =
     percentualAluguelFinal > 0
@@ -347,7 +358,6 @@ export function ModalNovaViagem({
       regraRecebimentoAplicada:
         previsaoDataRecebimento?.descricaoRegra || '',
 
-      // Etapas operacionais (Saída & Chegada e Animais Perdidos)
       statusSaidaChegada: viagemParaEditar?.statusSaidaChegada || 'pendente',
       dataHoraSaida: viagemParaEditar?.dataHoraSaida || null,
       dataHoraChegada: viagemParaEditar?.dataHoraChegada || null,
@@ -530,7 +540,7 @@ export function ModalNovaViagem({
           onSubmit={handleSubmit}
           className="flex-1 overflow-y-auto p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start"
         >
-          {/* Coluna Esquerda (8 colunas): Formulário em 4 Blocos */}
+          {/* Coluna Esquerda (8 colunas): Formulário em 3 Blocos */}
           <div className="lg:col-span-8 space-y-6">
             {erroValidacao && (
               <div className="flex items-center gap-2 text-xs font-semibold px-4 py-3 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 text-red-600 dark:text-red-400">
@@ -587,7 +597,7 @@ export function ModalNovaViagem({
                     onChange={(e) => handleSelecionarCaminhao(e.target.value)}
                     className="w-full h-10 px-3 rounded-lg text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white focus:outline-none focus:border-brand-500"
                   >
-                    <option value="">Selecione um caminhão...</option>
+                    <option value="">Selecione um caminhão..</option>
                     {caminhoes.map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.nome} ({c.placa})
@@ -901,7 +911,7 @@ export function ModalNovaViagem({
                   }}
                   className="w-full h-10 px-3 rounded-lg text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white focus:outline-none focus:border-brand-500"
                 >
-                  <option value="">Selecione quem vai pagar...</option>
+                  <option value="">Selecione quem vai pagar</option>
                   {intermediarios.length > 0 && (
                     <optgroup label="Intermediários">
                       {intermediarios.map((i) => (
@@ -946,7 +956,6 @@ export function ModalNovaViagem({
                 )}
               </div>
 
-              {/* Aviso de Divergência entre Valor Manual / Anterior e Valor da Tabela */}
               {isEdicao &&
                 viagemParaEditar &&
                 haDivergenciaValorNaEdicao && (
@@ -989,7 +998,6 @@ export function ModalNovaViagem({
                   </div>
                 )}
 
-              {/* Card Destaque: Previsão de Recebimento Detalhada */}
               <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-brand-500/30 shadow-xs space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
@@ -1011,7 +1019,6 @@ export function ModalNovaViagem({
                     viagemParaEditar &&
                     !usarValorTabelaNaEdicao) ? (
                     <div className="space-y-3">
-                      {/* Valor Bruto da Viagem */}
                       <div>
                         <div className="text-[11px] text-slate-500 dark:text-slate-400">
                           Valor Bruto da Viagem
@@ -1028,7 +1035,6 @@ export function ModalNovaViagem({
                         </div>
                       </div>
 
-                      {/* Aluguel Carreta e Valor Líquido */}
                       <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800 space-y-1.5 text-xs">
                         <div className="flex items-center justify-between">
                           <span className="text-slate-500 dark:text-slate-400">
@@ -1040,6 +1046,15 @@ export function ModalNovaViagem({
                               : formatarMoeda(0)}
                           </span>
                         </div>
+
+                        {taxaResolvida.origem !== 'nenhum' && (
+                          <div className="text-[10px] text-slate-400">
+                            Taxa aplicada:{' '}
+                            {taxaResolvida.origem === 'caminhao'
+                              ? 'Específica do caminhão'
+                              : 'Padrão da tabela'}
+                          </div>
+                        )}
 
                         <div className="flex items-center justify-between pt-1.5 border-t border-dashed border-slate-200 dark:border-slate-800">
                           <span className="font-bold text-slate-700 dark:text-slate-200">
@@ -1062,7 +1077,6 @@ export function ModalNovaViagem({
                   </div>
                 )}
 
-                {/* Data Prevista de Recebimento */}
                 <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800 space-y-1">
                   <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
                     <CalendarCheck className="w-3.5 h-3.5 text-emerald-500" />
