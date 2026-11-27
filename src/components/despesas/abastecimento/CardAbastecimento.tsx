@@ -10,12 +10,14 @@ import {
   Trash2,
   Split,
   Code2,
+  Lock,
 } from 'lucide-react';
 import {
   type Abastecimento,
   type ItemAbastecimento,
   type ResponsavelPagamentoAbastecimento,
 } from '../../../storage/abastecimentosStorage';
+import { despesaJaFoiPaga } from '../../../storage/recebimentosStorage';
 import * as devModeModule from '../../../context/DevModeContext';
 
 export interface GrupoCardAbastecimento {
@@ -155,6 +157,13 @@ export function CardAbastecimento({
   const { abastecimento: ab, responsavelEfetivo, itens } = grupo;
   const cfg = CONFIG_RESPONSAVEL[responsavelEfetivo];
 
+  const bloqueadoPorPagamento =
+    despesaJaFoiPaga(ab.id) ||
+    itens.some(
+      (it) =>
+        despesaJaFoiPaga(`${ab.id}::${it.id}`) || despesaJaFoiPaga(it.id)
+    );
+
   const mod = devModeModule as Record<string, unknown>;
   const useDevModeHook = mod.useDevMode as
     | (() => { devMode?: boolean; isDevMode?: boolean; enabled?: boolean })
@@ -188,6 +197,16 @@ export function CardAbastecimento({
             >
               {cfg.label}
             </span>
+
+            {bloqueadoPorPagamento && (
+              <span
+                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25"
+                title="Este abastecimento já foi incluído num recebimento e não pode ser alterado"
+              >
+                <Lock className="w-3 h-3" />
+                Pago
+              </span>
+            )}
 
             {grupo.totalGruposNoAbastecimento > 1 && (
               <span
@@ -256,62 +275,64 @@ export function CardAbastecimento({
             )}
           </div>
 
-          <div className="flex items-center gap-1.5">
-            {isDevMode && onEditarJson && (
-              <button
-                type="button"
-                onClick={() => onEditarJson(ab)}
-                title="Editar JSON (DevMode)"
-                className="p-2 rounded-lg border border-purple-500/30 bg-purple-500/10 text-purple-600 dark:text-purple-400 hover:bg-purple-500/20 transition-colors cursor-pointer"
-              >
-                <Code2 className="w-4 h-4" />
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={() => onEditar(ab)}
-              title="Editar abastecimento completo"
-              className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/70 text-slate-600 dark:text-slate-300 hover:text-brand-600 dark:hover:text-brand-400 hover:border-brand-500/40 transition-colors cursor-pointer"
-            >
-              <Pencil className="w-4 h-4" />
-            </button>
-
-            {ab.arquivado ? (
-              onRestaurar && (
+          {!bloqueadoPorPagamento && (
+            <div className="flex items-center gap-1.5">
+              {isDevMode && onEditarJson && (
                 <button
                   type="button"
-                  onClick={() => onRestaurar(ab)}
-                  title="Restaurar abastecimento"
-                  className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/70 text-slate-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 hover:border-emerald-500/40 transition-colors cursor-pointer"
+                  onClick={() => onEditarJson(ab)}
+                  title="Editar JSON (DevMode)"
+                  className="p-2 rounded-lg border border-purple-500/30 bg-purple-500/10 text-purple-600 dark:text-purple-400 hover:bg-purple-500/20 transition-colors cursor-pointer"
                 >
-                  <RotateCcw className="w-4 h-4" />
+                  <Code2 className="w-4 h-4" />
                 </button>
-              )
-            ) : (
-              onArquivar && (
-                <button
-                  type="button"
-                  onClick={() => onArquivar(ab)}
-                  title="Arquivar abastecimento"
-                  className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/70 text-slate-600 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-400 hover:border-amber-500/40 transition-colors cursor-pointer"
-                >
-                  <Archive className="w-4 h-4" />
-                </button>
-              )
-            )}
+              )}
 
-            {onExcluir && (
               <button
                 type="button"
-                onClick={onExcluir}
-                title="Excluir abastecimento"
-                className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/70 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 hover:border-red-500/40 transition-colors cursor-pointer"
+                onClick={() => onEditar(ab)}
+                title="Editar abastecimento completo"
+                className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/70 text-slate-600 dark:text-slate-300 hover:text-brand-600 dark:hover:text-brand-400 hover:border-brand-500/40 transition-colors cursor-pointer"
               >
-                <Trash2 className="w-4 h-4" />
+                <Pencil className="w-4 h-4" />
               </button>
-            )}
-          </div>
+
+              {ab.arquivado ? (
+                onRestaurar && (
+                  <button
+                    type="button"
+                    onClick={() => onRestaurar(ab)}
+                    title="Restaurar abastecimento"
+                    className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/70 text-slate-600 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 hover:border-emerald-500/40 transition-colors cursor-pointer"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                  </button>
+                )
+              ) : (
+                onArquivar && (
+                  <button
+                    type="button"
+                    onClick={() => onArquivar(ab)}
+                    title="Arquivar abastecimento"
+                    className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/70 text-slate-600 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-400 hover:border-amber-500/40 transition-colors cursor-pointer"
+                  >
+                    <Archive className="w-4 h-4" />
+                  </button>
+                )
+              )}
+
+              {onExcluir && (
+                <button
+                  type="button"
+                  onClick={onExcluir}
+                  title="Excluir abastecimento"
+                  className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/70 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 hover:border-red-500/40 transition-colors cursor-pointer"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

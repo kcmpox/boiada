@@ -8,12 +8,14 @@ import {
   Trash2,
   Code2,
   Wrench,
+  Lock,
 } from 'lucide-react';
 import {
   type Manutencao,
   type CategoriaManutencao,
   type ResponsavelPagamentoManutencao,
 } from '../../../storage/manutencoesStorage';
+import { despesaJaFoiPaga } from '../../../storage/recebimentosStorage';
 import { useDevMode } from '../../../context/DevModeContext';
 
 interface CardManutencaoProps {
@@ -79,6 +81,7 @@ export function CardManutencao({
   onExcluir,
 }: CardManutencaoProps) {
   const { devMode } = useDevMode();
+  const bloqueadoPorPagamento = despesaJaFoiPaga(manutencao.id);
   const respInfo =
     INFO_RESPONSAVEL[manutencao.responsavelPagamento] ||
     INFO_RESPONSAVEL.minha_despesa;
@@ -108,6 +111,16 @@ export function CardManutencao({
               {respInfo.label}
             </span>
 
+            {bloqueadoPorPagamento && (
+              <span
+                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25"
+                title="Esta manutenção já foi incluída num recebimento e não pode ser alterada"
+              >
+                <Lock className="w-3 h-3" />
+                Pago
+              </span>
+            )}
+
             <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-600 dark:text-slate-300">
               <Calendar className="w-3.5 h-3.5 text-slate-400" />
               {formatarDataHoraBr(manutencao.dataHora)}
@@ -130,58 +143,60 @@ export function CardManutencao({
         </div>
 
         {/* Botões de Ação */}
-        <div className="flex items-center gap-1 ml-auto shrink-0">
-          {devMode && onEditarJson && (
-            <button
-              type="button"
-              onClick={() => onEditarJson(manutencao)}
-              title="Editar JSON (DevMode)"
-              className="p-2 rounded-lg text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-500/10 transition-colors cursor-pointer"
-            >
-              <Code2 className="w-4 h-4" />
-            </button>
-          )}
-
-          <button
-            type="button"
-            onClick={() => onEditar(manutencao)}
-            title="Editar manutenção"
-            className="p-2 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-          >
-            <Pencil className="w-4 h-4" />
-          </button>
-
-          {manutencao.arquivada && onRestaurar ? (
-            <button
-              type="button"
-              onClick={() => onRestaurar(manutencao)}
-              title="Restaurar manutenção"
-              className="p-2 rounded-lg text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-colors cursor-pointer"
-            >
-              <RotateCcw className="w-4 h-4" />
-            </button>
-          ) : (
-            onArquivar && (
+        {!bloqueadoPorPagamento && (
+          <div className="flex items-center gap-1 ml-auto shrink-0">
+            {devMode && onEditarJson && (
               <button
                 type="button"
-                onClick={() => onArquivar(manutencao)}
-                title="Arquivar manutenção"
-                className="p-2 rounded-lg text-slate-500 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-colors cursor-pointer"
+                onClick={() => onEditarJson(manutencao)}
+                title="Editar JSON (DevMode)"
+                className="p-2 rounded-lg text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-500/10 transition-colors cursor-pointer"
               >
-                <Archive className="w-4 h-4" />
+                <Code2 className="w-4 h-4" />
               </button>
-            )
-          )}
+            )}
 
-          <button
-            type="button"
-            onClick={() => onExcluir(manutencao)}
-            title="Excluir manutenção"
-            className="p-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors cursor-pointer"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
-        </div>
+            <button
+              type="button"
+              onClick={() => onEditar(manutencao)}
+              title="Editar manutenção"
+              className="p-2 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+            >
+              <Pencil className="w-4 h-4" />
+            </button>
+
+            {manutencao.arquivada && onRestaurar ? (
+              <button
+                type="button"
+                onClick={() => onRestaurar(manutencao)}
+                title="Restaurar manutenção"
+                className="p-2 rounded-lg text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-colors cursor-pointer"
+              >
+                <RotateCcw className="w-4 h-4" />
+              </button>
+            ) : (
+              onArquivar && (
+                <button
+                  type="button"
+                  onClick={() => onArquivar(manutencao)}
+                  title="Arquivar manutenção"
+                  className="p-2 rounded-lg text-slate-500 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-colors cursor-pointer"
+                >
+                  <Archive className="w-4 h-4" />
+                </button>
+              )
+            )}
+
+            <button
+              type="button"
+              onClick={() => onExcluir(manutencao)}
+              title="Excluir manutenção"
+              className="p-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors cursor-pointer"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Corpo: Descrição + Valor */}

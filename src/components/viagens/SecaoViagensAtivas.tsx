@@ -15,6 +15,9 @@ import {
   CalendarCheck,
   DollarSign,
   Archive,
+  Lock,
+  Filter,
+  RotateCcw,
 } from 'lucide-react';
 import {
   listarViagens,
@@ -28,6 +31,7 @@ import {
   listarFrigorificos,
   listarIntermediarios,
 } from '../../storage/cadastrosStorage';
+import { viagemJaFoiPaga } from '../../storage/recebimentosStorage';
 import { Paginacao } from '../Paginacao';
 import { ModalNovaViagem } from './ModalNovaViagem';
 import { ModalEditarValorBrutoViagem } from './ModalEditarValorBrutoViagem';
@@ -35,6 +39,8 @@ import { ModalEditarJsonViagem } from '../json_editor/ModalEditarJsonViagem';
 import { useDevMode } from '../../context/DevModeContext';
 
 const ITENS_POR_PAGINA = 10;
+
+type StatusFiltroViagem = 'todos' | 'pendente' | 'paga';
 
 function formatarMoeda(valor: number): string {
   return valor.toLocaleString('pt-BR', {
@@ -50,9 +56,19 @@ function formatarDataBr(isoDate: string): string {
   return `${dia}/${mes}/${ano}`;
 }
 
+function ordenarViagensMaisRecentes(lista: Viagem[]): Viagem[] {
+  return [...lista].sort((a, b) => {
+    const cmpData = (b.data || '').localeCompare(a.data || '');
+    if (cmpData !== 0) return cmpData;
+    return (b.dataCriacao || '').localeCompare(a.dataCriacao || '');
+  });
+}
+
 export function SecaoViagensAtivas() {
   const { devMode } = useDevMode();
-  const [viagens, setViagens] = useState<Viagem[]>(() => listarViagens());
+  const [viagens, setViagens] = useState<Viagem[]>(() =>
+    ordenarViagensMaisRecentes(listarViagens())
+  );
   const [paginaAtual, setPaginaAtual] = useState(1);
   const [modalNovaAberta, setModalNovaAberta] = useState(false);
   const [viagemEmEdicao, setViagemEmEdicao] = useState<Viagem | null>(null);
@@ -62,14 +78,130 @@ export function SecaoViagensAtivas() {
     null
   );
 
+  // Estados dos filtros (período de datas: de / até)
+  const [filtroDataInicio, setFiltroDataInicio] = useState<string>('');
+  const [filtroDataFim, setFiltroDataFim] = useState<string>('');
+  const [filtroCaminhaoId, setFiltroCaminhaoId] = useState<string>('');
+  const [filtroMotoristaId, setFiltroMotoristaId] = useState<string>('');
+  const [filtroPagadorChave, setFiltroPagadorChave] = useState<string>('');
+  const [filtroFrigorificoId, setFiltroFrigorificoId] = useState<string>('');
+  const [filtroStatus, setFiltroStatus] = useState<StatusFiltroViagem>('todos');
+
+  useEffect(() => {
+    const atualizar = () =>
+      setViagens(ordenarViagensMaisRecentes(listarViagens()));
+    window.addEventListener('storage', atualizar);
+    window.addEventListener('bt-recebimentos-updated', atualizar);
+    return () => {
+      window.removeEventListener('storage', atualizar);
+      window.removeEventListener('bt-recebimentos-updated', atualizar);
+    };
+  }, []);
+
   const caminhoes = useMemo(() => listarCaminhoes(), []);
   const motoristas = useMemo(() => listarMotoristas(), []);
   const frigorificos = useMemo(() => listarFrigorificos(), []);
   const intermediarios = useMemo(() => listarIntermediarios(), []);
 
+  const pagadoresOpcoes = useMemo(() => {
+    const opcoes: { chave: string; nome: string }[] = [];
+    for (const f of frigorificos) {
+      opcoes.push({
+        chave: `frigorifico:${f.id}`,
+        nome: `${f.nome} (Frigorífico)`,
+      });
+    }
+    for (const i of intermediarios) {
+      opcoes.push({
+        chave: `intermediario:${i.id}`,
+        nome: `${i.nome} (Intermediário)`,
+      });
+    }
+    return opcoes;
+  }, [frigorificos, intermediarios]);
+
+  const haFiltrosAtivos = Boolean(
+    filtroDataInicio ||
+      filtroDataFim ||
+      filtroCaminhaoId ||
+      filtroMotoristaId ||
+      filtroPagadorChave ||
+      filtroFrigorificoId ||
+      filtroStatus !== 'todos'
+  );
+
+  const limparFiltros = () => {
+    setFiltroDataInicio('');
+    setFiltroDataFim('');
+    setFiltroCaminhaoId('');
+    setFiltroMotoristaId('');
+    setFiltroPagadorChave('');
+    setFiltroFrigorificoId('');
+    setFiltroStatus('todos');
+    setPaginaAtual(1);
+  };
+
+  const viagensFiltradas = useMemo(() => {
+    return ordenarViagensMaisRecentes(viagens).filter((v) => {
+      if (filtroDataInicio && (!v.data || v.data < filtroDataInicio)) {
+        return false;
+      }
+
+      if (filtroDataFim && (!v.data || v.data > filtroDataFim)) {
+        return false;
+      }
+
+      if (filtroCaminhaoId && String(v.caminhaoId) !== String(filtroCaminhaoId)) {
+        return false;
+      }
+
+      if (
+        filtroMotoristaId &&
+        String(v.motoristaId) !== String(filtroMotoristaId)
+      ) {
+        return false;
+      }
+
+      if (filtroPagadorChave) {
+        const sepIdx = filtroPagadorChave.indexOf(':');
+        if (sepIdx !== -1) {
+          const tipo = filtroPagadorChave.slice(0, sepIdx);
+          const id = filtroPagadorChave.slice(sepIdx + 1);
+          if (v.pagadorTipo !== tipo || String(v.pagadorId) !== String(id)) {
+            return false;
+          }
+        }
+      }
+
+      if (
+        filtroFrigorificoId &&
+        String(v.frigorificoId) !== String(filtroFrigorificoId)
+      ) {
+        return false;
+      }
+
+      if (filtroStatus !== 'todos') {
+        const paga = viagemJaFoiPaga(v.id);
+        if (filtroStatus === 'paga' && !paga) return false;
+        if (filtroStatus === 'pendente' && paga) return false;
+      }
+
+      return true;
+    });
+  }, [
+    viagens,
+    filtroDataInicio,
+    filtroDataFim,
+    filtroCaminhaoId,
+    filtroMotoristaId,
+    filtroPagadorChave,
+    filtroFrigorificoId,
+    filtroStatus,
+  ]);
+
   const totalPaginas = Math.max(
     1,
-    Math.ceil(viagens.length / ITENS_POR_PAGINA)
+    Math.ceil(viagensFiltradas.length / ITENS_POR_PAGINA)
   );
   const paginaSegura = Math.min(paginaAtual, totalPaginas);
 
@@ -81,11 +213,11 @@ export function SecaoViagensAtivas() {
 
   const viagensPaginadas = useMemo(() => {
     const inicio = (paginaSegura - 1) * ITENS_POR_PAGINA;
-    return viagens.slice(inicio, inicio + ITENS_POR_PAGINA);
-  }, [viagens, paginaSegura]);
+    return viagensFiltradas.slice(inicio, inicio + ITENS_POR_PAGINA);
+  }, [viagensFiltradas, paginaSegura]);
 
   const handleAdicionarViagem = (nova: Viagem) => {
-    const atualizada = [nova, ...viagens];
+    const atualizada = ordenarViagensMaisRecentes([nova, ...viagens]);
     setViagens(atualizada);
     salvarViagens(atualizada);
     setPaginaAtual(1);
@@ -93,8 +225,15 @@ export function SecaoViagensAtivas() {
   };
 
   const handleSalvarEdicaoViagem = (editada: Viagem) => {
-    const atualizada = viagens.map((v) =>
-      v.id === editada.id ? editada : v
+    if (viagemJaFoiPaga(editada.id)) {
+      setViagemEmEdicao(null);
+      setViagemValorBrutoEmEdicao(null);
+      setViagemJsonEmEdicao(null);
+      return;
+    }
+
+    const atualizada = ordenarViagensMaisRecentes(
+      viagens.map((v) => (v.id === editada.id ? editada : v))
     );
     setViagens(atualizada);
     salvarViagens(atualizada);
@@ -104,12 +243,16 @@ export function SecaoViagensAtivas() {
   };
 
   const handleArquivar = (id: string) => {
-    const restantes = arquivarViagem(id);
+    if (viagemJaFoiPaga(id)) return;
+    const restantes = ordenarViagensMaisRecentes(arquivarViagem(id));
     setViagens(restantes);
   };
 
   const excluirViagem = (id: string) => {
-    const atualizada = viagens.filter((v) => v.id !== id);
+    if (viagemJaFoiPaga(id)) return;
+    const atualizada = ordenarViagensMaisRecentes(
+      viagens.filter((v) => v.id !== id)
+    );
     setViagens(atualizada);
     salvarViagens(atualizada);
   };
@@ -143,9 +286,17 @@ export function SecaoViagensAtivas() {
         <div className="text-xs text-slate-500 dark:text-slate-400">
           {viagens.length === 0
             ? 'Nenhuma viagem registrada.'
-            : `${viagens.length} ${
-                viagens.length === 1 ? 'viagem registrada' : 'viagens registradas'
-              }`}
+            : haFiltrosAtivos
+              ? `${viagensFiltradas.length} de ${viagens.length} ${
+                  viagens.length === 1
+                    ? 'viagem exibida'
+                    : 'viagens exibidas'
+                }`
+              : `${viagens.length} ${
+                  viagens.length === 1
+                    ? 'viagem registrada'
+                    : 'viagens registradas'
+                }`}
         </div>
 
         <button
@@ -157,6 +308,172 @@ export function SecaoViagensAtivas() {
           Nova Viagem
         </button>
       </div>
+
+      {/* Barra de Filtros */}
+      {viagens.length > 0 && (
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-800 p-4 shadow-xs space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              <Filter className="w-3.5 h-3.5 text-brand-500" />
+              Filtros
+            </span>
+
+            {haFiltrosAtivos && (
+              <button
+                type="button"
+                onClick={limparFiltros}
+                className="inline-flex items-center gap-1 text-xs font-semibold text-brand-600 dark:text-brand-400 hover:underline cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                Limpar filtros
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* Período: Data Inicial */}
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1">
+                Data (De)
+              </label>
+              <input
+                type="date"
+                value={filtroDataInicio}
+                max={filtroDataFim || undefined}
+                onChange={(e) => {
+                  setFiltroDataInicio(e.target.value);
+                  setPaginaAtual(1);
+                }}
+                className="w-full h-9 px-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+            </div>
+
+            {/* Período: Data Final */}
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1">
+                Data (Até)
+              </label>
+              <input
+                type="date"
+                value={filtroDataFim}
+                min={filtroDataInicio || undefined}
+                onChange={(e) => {
+                  setFiltroDataFim(e.target.value);
+                  setPaginaAtual(1);
+                }}
+                className="w-full h-9 px-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+            </div>
+
+            {/* Caminhão */}
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1">
+                Caminhão
+              </label>
+              <select
+                value={filtroCaminhaoId}
+                onChange={(e) => {
+                  setFiltroCaminhaoId(e.target.value);
+                  setPaginaAtual(1);
+                }}
+                className="w-full h-9 px-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+              >
+                <option value="">Todos os caminhões</option>
+                {caminhoes.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.nome} {c.placa ? `(${c.placa})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Motorista */}
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1">
+                Motorista
+              </label>
+              <select
+                value={filtroMotoristaId}
+                onChange={(e) => {
+                  setFiltroMotoristaId(e.target.value);
+                  setPaginaAtual(1);
+                }}
+                className="w-full h-9 px-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+              >
+                <option value="">Todos os motoristas</option>
+                {motoristas.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.nome}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Pagador */}
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1">
+                Pagador
+              </label>
+              <select
+                value={filtroPagadorChave}
+                onChange={(e) => {
+                  setFiltroPagadorChave(e.target.value);
+                  setPaginaAtual(1);
+                }}
+                className="w-full h-9 px-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+              >
+                <option value="">Todos os pagadores</option>
+                {pagadoresOpcoes.map((p) => (
+                  <option key={p.chave} value={p.chave}>
+                    {p.nome}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Frigorífico */}
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1">
+                Frigorífico
+              </label>
+              <select
+                value={filtroFrigorificoId}
+                onChange={(e) => {
+                  setFiltroFrigorificoId(e.target.value);
+                  setPaginaAtual(1);
+                }}
+                className="w-full h-9 px-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+              >
+                <option value="">Todos os frigoríficos</option>
+                {frigorificos.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.nome}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Status */}
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1">
+                Status
+              </label>
+              <select
+                value={filtroStatus}
+                onChange={(e) => {
+                  setFiltroStatus(e.target.value as StatusFiltroViagem);
+                  setPaginaAtual(1);
+                }}
+                className="w-full h-9 px-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+              >
+                <option value="todos">Todos os status</option>
+                <option value="pendente">Pendente</option>
+                <option value="paga">Paga</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Listagem dos Cards de Viagens */}
       {viagens.length === 0 ? (
@@ -171,12 +488,26 @@ export function SecaoViagensAtivas() {
             Clique em <strong>Nova Viagem</strong> acima para lançar o transporte e calcular automaticamente o frete.
           </p>
         </div>
+      ) : viagensFiltradas.length === 0 ? (
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 p-10 text-center space-y-3">
+          <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
+            Nenhuma viagem corresponde aos filtros selecionados
+          </p>
+          <button
+            type="button"
+            onClick={limparFiltros}
+            className="h-9 px-4 rounded-lg text-xs font-semibold border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+          >
+            Limpar filtros
+          </button>
+        </div>
       ) : (
         <div className="space-y-4">
           <div className="grid grid-cols-1 gap-4">
             {viagensPaginadas.map((v) => {
               const caminhao = obterCaminhao(v.caminhaoId);
               const frigResponsavel = obterNomeFrigorifico(v.frigorificoId);
+              const bloqueadoPorPagamento = viagemJaFoiPaga(v.id);
               const liquido =
                 v.valorLiquidoViagem !== undefined
                   ? v.valorLiquidoViagem
@@ -200,6 +531,16 @@ export function SecaoViagensAtivas() {
                         >
                           {v.tipoGado === 'boi_gordo' ? 'Boi Gordo' : 'Boi Magro'}
                         </span>
+
+                        {bloqueadoPorPagamento && (
+                          <span
+                            className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25"
+                            title="Esta viagem já foi incluída num recebimento e não pode ser alterada"
+                          >
+                            <Lock className="w-3 h-3" />
+                            Paga
+                          </span>
+                        )}
 
                         <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-600 dark:text-slate-300">
                           <Calendar className="w-3.5 h-3.5 text-slate-400" />
@@ -237,58 +578,60 @@ export function SecaoViagensAtivas() {
                     </div>
 
                     {/* Botões de Ação */}
-                    <div className="flex items-center gap-1 ml-auto">
-                      {v.tipoGado === 'boi_magro' && (
+                    {!bloqueadoPorPagamento && (
+                      <div className="flex items-center gap-1 ml-auto">
+                        {v.tipoGado === 'boi_magro' && (
+                          <button
+                            type="button"
+                            onClick={() => setViagemValorBrutoEmEdicao(v)}
+                            title="Editar valor bruto (Boi Magro)"
+                            aria-label="Editar valor bruto"
+                            className="p-2 rounded-lg text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-500/10 transition-colors cursor-pointer"
+                          >
+                            <DollarSign className="w-4 h-4" />
+                          </button>
+                        )}
+
+                        {devMode && (
+                          <button
+                            type="button"
+                            onClick={() => setViagemJsonEmEdicao(v)}
+                            title="Editar JSON (DevMode)"
+                            className="p-2 rounded-lg text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-500/10 transition-colors cursor-pointer"
+                          >
+                            <Code2 className="w-4 h-4" />
+                          </button>
+                        )}
+
                         <button
                           type="button"
-                          onClick={() => setViagemValorBrutoEmEdicao(v)}
-                          title="Editar valor bruto (Boi Magro)"
-                          aria-label="Editar valor bruto"
-                          className="p-2 rounded-lg text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-500/10 transition-colors cursor-pointer"
+                          onClick={() => setViagemEmEdicao(v)}
+                          title="Editar viagem"
+                          className="p-2 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                         >
-                          <DollarSign className="w-4 h-4" />
+                          <Pencil className="w-4 h-4" />
                         </button>
-                      )}
 
-                      {devMode && (
                         <button
                           type="button"
-                          onClick={() => setViagemJsonEmEdicao(v)}
-                          title="Editar JSON (DevMode)"
-                          className="p-2 rounded-lg text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-500/10 transition-colors cursor-pointer"
+                          onClick={() => handleArquivar(v.id)}
+                          title="Arquivar viagem"
+                          aria-label="Arquivar viagem"
+                          className="p-2 rounded-lg text-slate-500 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-colors cursor-pointer"
                         >
-                          <Code2 className="w-4 h-4" />
+                          <Archive className="w-4 h-4" />
                         </button>
-                      )}
 
-                      <button
-                        type="button"
-                        onClick={() => setViagemEmEdicao(v)}
-                        title="Editar viagem"
-                        className="p-2 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleArquivar(v.id)}
-                        title="Arquivar viagem"
-                        aria-label="Arquivar viagem"
-                        className="p-2 rounded-lg text-slate-500 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-colors cursor-pointer"
-                      >
-                        <Archive className="w-4 h-4" />
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => excluirViagem(v.id)}
-                        title="Excluir viagem"
-                        className="p-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors cursor-pointer"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
+                        <button
+                          type="button"
+                          onClick={() => excluirViagem(v.id)}
+                          title="Excluir viagem"
+                          className="p-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors cursor-pointer"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {/* Bloco Financeiro do Card */}
@@ -384,7 +727,7 @@ export function SecaoViagensAtivas() {
 
           <Paginacao
             paginaAtual={paginaSegura}
-            totalItens={viagens.length}
+            totalItens={viagensFiltradas.length}
             itensPorPagina={ITENS_POR_PAGINA}
             onMudarPagina={setPaginaAtual}
           />

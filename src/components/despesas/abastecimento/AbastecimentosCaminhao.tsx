@@ -1,13 +1,15 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Truck } from 'lucide-react';
+import { Plus, Truck, Filter, RotateCcw } from 'lucide-react';
 import {
   type Abastecimento,
+  type ResponsavelPagamentoAbastecimento,
   lerAbastecimentos,
   alternarArquivamentoAbastecimento,
   excluirAbastecimentosPorIds,
 } from '../../../storage/abastecimentosStorage';
 import * as cadastrosStorage from '../../../storage/cadastrosStorage';
 import * as viagensStorage from '../../../storage/viagensStorage';
+import { despesaJaFoiPaga } from '../../../storage/recebimentosStorage';
 import { Paginacao } from '../../Paginacao';
 import { ModalNovoAbastecimento } from './ModalNovoAbastecimento';
 import { ModalEditarJsonAbastecimento } from '../../json_editor/ModalEditarJsonAbastecimento';
@@ -17,6 +19,11 @@ import {
 } from './CardAbastecimento';
 
 const ITENS_POR_PAGINA = 10;
+
+type StatusFiltroAbastecimento = 'todos' | 'pendente' | 'pago';
+type ResponsavelFiltroAbastecimento =
+  | 'todos'
+  | ResponsavelPagamentoAbastecimento;
 
 interface AbastecimentosCaminhaoProps {
   caminhaoId: string;
@@ -68,6 +75,20 @@ function extrairColecao(
   return [];
 }
 
+function extrairDataIso(dataHora: string): string {
+  if (!dataHora) return '';
+  if (dataHora.includes('T')) return dataHora.split('T')[0] || '';
+  if (dataHora.includes(' ')) return dataHora.split(' ')[0] || '';
+  return dataHora.slice(0, 10);
+}
+
+function abastecimentoEstaPago(ab: Abastecimento): boolean {
+  if (despesaJaFoiPaga(ab.id)) return true;
+  return (ab.itens || []).some(
+    (it) => despesaJaFoiPaga(`${ab.id}::${it.id}`) || despesaJaFoiPaga(it.id)
+  );
+}
+
 export function AbastecimentosCaminhao({
   caminhaoId,
   nome,
@@ -80,6 +101,15 @@ export function AbastecimentosCaminhao({
     useState<Abastecimento | null>(null);
   const [abastecimentos, setAbastecimentos] = useState<Abastecimento[]>([]);
   const [paginaAtual, setPaginaAtual] = useState(1);
+
+  // Estados dos filtros (período de datas: de / até)
+  const [filtroDataInicio, setFiltroDataInicio] = useState<string>('');
+  const [filtroDataFim, setFiltroDataFim] = useState<string>('');
+  const [filtroMotoristaId, setFiltroMotoristaId] = useState<string>('');
+  const [filtroResponsavel, setFiltroResponsavel] =
+    useState<ResponsavelFiltroAbastecimento>('todos');
+  const [filtroStatus, setFiltroStatus] =
+    useState<StatusFiltroAbastecimento>('todos');
 
   const tituloCaminhao = nome
     ? `${nome}${placa ? ` (${placa})` : ''}`
@@ -96,77 +126,150 @@ export function AbastecimentosCaminhao({
 
   useEffect(() => {
     setPaginaAtual(1);
+    setFiltroDataInicio('');
+    setFiltroDataFim('');
+    setFiltroMotoristaId('');
+    setFiltroResponsavel('todos');
+    setFiltroStatus('todos');
     carregar();
-    window.addEventListener('storage', carregar);
-    return () => window.removeEventListener('storage', carregar);
   }, [caminhaoId]);
 
-  const { mapaMotoristas, mapaViagens } = useMemo(() => {
-    const motoristasMap = new Map<string, string>();
-    const viagensMap = new Map<string, string>();
-
-    const listaMotoristas = extrairColecao(
-      cadastrosStorage as Record<string, unknown>,
-      ['motoristas'],
-      (x) =>
-        typeof x === 'object' &&
-        x !== null &&
-        'nome' in x &&
-        !('placa' in x) &&
-        !('rodovia' in x) &&
-        !('uf' in x)
-    );
-    for (const item of listaMotoristas) {
-      const m = item as { id: string | number; nome: string };
-      motoristasMap.set(String(m.id), m.nome);
-    }
-
-    const listaViagens = extrairColecao(
-      viagensStorage as Record<string, unknown>,
-      ['viagens'],
-      (x) =>
-        typeof x === 'object' &&
-        x !== null &&
-        'id' in x &&
-        ('localEmbarque' in x || 'embarque' in x || 'tipoGado' in x)
-    );
-    for (const item of listaViagens) {
-      const v = item as {
-        id: string | number;
-        data?: string;
-        localEmbarque?: string;
-        embarque?: string;
-        pecuarista?: string;
-        minuta?: string;
-        numeroMinuta?: string;
-      };
-      const dataFmt = v.data
-        ? new Date(v.data + 'T12:00:00').toLocaleDateString('pt-BR')
-        : '';
-      const local = (v.localEmbarque || v.embarque || '').trim();
-      const pecuarista = (v.pecuarista || '').trim();
-      const minuta = (v.minuta || v.numeroMinuta || '').trim();
-      const rotulo = [
-        dataFmt,
-        [local, pecuarista].filter(Boolean).join(' '),
-        minuta ? `Minuta ${minuta}` : null,
-      ]
-        .filter(Boolean)
-        .join(' - ');
-
-      if (rotulo) viagensMap.set(String(v.id), rotulo);
-    }
-
-    return {
-      mapaMotoristas: motoristasMap,
-      mapaViagens: viagensMap,
+  useEffect(() => {
+    window.addEventListener('storage', carregar);
+    window.addEventListener('bt-recebimentos-updated', carregar);
+    return () => {
+      window.removeEventListener('storage', carregar);
+      window.removeEventListener('bt-recebimentos-updated', carregar);
     };
-  }, [abastecimentos]);
+  }, [caminhaoId]);
 
-  const gruposCards = useMemo(
-    () => agruparAbastecimentosPorResponsavel(abastecimentos),
-    [abastecimentos]
+  const { mapaMotoristas, listaMotoristasOpcoes, mapaViagens } =
+    useMemo(() => {
+      const motoristasMap = new Map<string, string>();
+      const viagensMap = new Map<string, string>();
+
+      const listaMotoristas = extrairColecao(
+        cadastrosStorage as Record<string, unknown>,
+        ['motoristas'],
+        (x) =>
+          typeof x === 'object' &&
+          x !== null &&
+          'nome' in x &&
+          !('placa' in x) &&
+          !('rodovia' in x) &&
+          !('uf' in x)
+      );
+      const opcoesMotoristas: { id: string; nome: string }[] = [];
+      for (const item of listaMotoristas) {
+        const m = item as { id: string | number; nome: string };
+        const idStr = String(m.id);
+        motoristasMap.set(idStr, m.nome);
+        opcoesMotoristas.push({ id: idStr, nome: m.nome });
+      }
+
+      const listaViagens = extrairColecao(
+        viagensStorage as Record<string, unknown>,
+        ['viagens'],
+        (x) =>
+          typeof x === 'object' &&
+          x !== null &&
+          'id' in x &&
+          ('localEmbarque' in x || 'embarque' in x || 'tipoGado' in x)
+      );
+      for (const item of listaViagens) {
+        const v = item as {
+          id: string | number;
+          data?: string;
+          localEmbarque?: string;
+          embarque?: string;
+          pecuarista?: string;
+          minuta?: string;
+          numeroMinuta?: string;
+        };
+        const dataFmt = v.data
+          ? new Date(v.data + 'T12:00:00').toLocaleDateString('pt-BR')
+          : '';
+        const local = (v.localEmbarque || v.embarque || '').trim();
+        const pecuarista = (v.pecuarista || '').trim();
+        const minuta = (v.minuta || v.numeroMinuta || '').trim();
+        const rotulo = [
+          dataFmt,
+          [local, pecuarista].filter(Boolean).join(' '),
+          minuta ? `Minuta ${minuta}` : null,
+        ]
+          .filter(Boolean)
+          .join(' - ');
+
+        if (rotulo) viagensMap.set(String(v.id), rotulo);
+      }
+
+      return {
+        mapaMotoristas: motoristasMap,
+        listaMotoristasOpcoes: opcoesMotoristas,
+        mapaViagens: viagensMap,
+      };
+    }, [abastecimentos]);
+
+  const haFiltrosAtivos = Boolean(
+    filtroDataInicio ||
+      filtroDataFim ||
+      filtroMotoristaId ||
+      filtroResponsavel !== 'todos' ||
+      filtroStatus !== 'todos'
   );
+
+  const limparFiltros = () => {
+    setFiltroDataInicio('');
+    setFiltroDataFim('');
+    setFiltroMotoristaId('');
+    setFiltroResponsavel('todos');
+    setFiltroStatus('todos');
+    setPaginaAtual(1);
+  };
+
+  const abastecimentosFiltrados = useMemo(() => {
+    return abastecimentos.filter((ab) => {
+      const dataItem = extrairDataIso(ab.dataHora);
+
+      if (filtroDataInicio && (!dataItem || dataItem < filtroDataInicio)) {
+        return false;
+      }
+
+      if (filtroDataFim && (!dataItem || dataItem > filtroDataFim)) {
+        return false;
+      }
+
+      if (filtroMotoristaId) {
+        if (filtroMotoristaId === 'sem_motorista') {
+          if (ab.motoristaId) return false;
+        } else if (String(ab.motoristaId || '') !== filtroMotoristaId) {
+          return false;
+        }
+      }
+
+      if (filtroStatus !== 'todos') {
+        const pago = abastecimentoEstaPago(ab);
+        if (filtroStatus === 'pago' && !pago) return false;
+        if (filtroStatus === 'pendente' && pago) return false;
+      }
+
+      return true;
+    });
+  }, [
+    abastecimentos,
+    filtroDataInicio,
+    filtroDataFim,
+    filtroMotoristaId,
+    filtroStatus,
+  ]);
+
+  const gruposCards = useMemo(() => {
+    const agrupados = agruparAbastecimentosPorResponsavel(
+      abastecimentosFiltrados
+    );
+    if (filtroResponsavel === 'todos') return agrupados;
+    return agrupados.filter((g) => g.responsavelEfetivo === filtroResponsavel);
+  }, [abastecimentosFiltrados, filtroResponsavel]);
 
   const totalPaginas = Math.max(
     1,
@@ -205,8 +308,8 @@ export function AbastecimentosCaminhao({
     carregar();
   };
 
-  const handleExcluir = (itens: Abastecimento[]) => {
-    excluirAbastecimentosPorIds(itens.map((item) => item.id));
+  const handleExcluir = (ids: string[]) => {
+    excluirAbastecimentosPorIds(ids);
     carregar();
   };
 
@@ -219,7 +322,10 @@ export function AbastecimentosCaminhao({
             Abastecimentos — {tituloCaminhao}
           </h3>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            {abastecimentos.length} abastecimento(s) • Total acumulado:{' '}
+            {haFiltrosAtivos
+              ? `${abastecimentosFiltrados.length} de ${abastecimentos.length} abastecimento(s) • `
+              : `${abastecimentos.length} abastecimento(s) • `}
+            Total acumulado:{' '}
             <strong className="text-slate-700 dark:text-slate-200">
               {totalGeralCaminhao.toLocaleString('pt-BR', {
                 style: 'currency',
@@ -239,8 +345,135 @@ export function AbastecimentosCaminhao({
         </button>
       </div>
 
+      {/* Barra de Filtros */}
+      {abastecimentos.length > 0 && (
+        <div className="bg-white dark:bg-slate-900/80 rounded-xl border border-slate-200/90 dark:border-slate-800 p-4 shadow-2xs space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              <Filter className="w-3.5 h-3.5 text-brand-500" />
+              Filtros
+            </span>
+
+            {haFiltrosAtivos && (
+              <button
+                type="button"
+                onClick={limparFiltros}
+                className="inline-flex items-center gap-1 text-xs font-semibold text-brand-600 dark:text-brand-400 hover:underline cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                Limpar filtros
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            {/* Período: Data Inicial */}
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1">
+                Data (De)
+              </label>
+              <input
+                type="date"
+                value={filtroDataInicio}
+                max={filtroDataFim || undefined}
+                onChange={(e) => {
+                  setFiltroDataInicio(e.target.value);
+                  setPaginaAtual(1);
+                }}
+                className="w-full h-9 px-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+            </div>
+
+            {/* Período: Data Final */}
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1">
+                Data (Até)
+              </label>
+              <input
+                type="date"
+                value={filtroDataFim}
+                min={filtroDataInicio || undefined}
+                onChange={(e) => {
+                  setFiltroDataFim(e.target.value);
+                  setPaginaAtual(1);
+                }}
+                className="w-full h-9 px-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+            </div>
+
+            {/* Motorista */}
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1">
+                Motorista
+              </label>
+              <select
+                value={filtroMotoristaId}
+                onChange={(e) => {
+                  setFiltroMotoristaId(e.target.value);
+                  setPaginaAtual(1);
+                }}
+                className="w-full h-9 px-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+              >
+                <option value="">Todos os motoristas</option>
+                {listaMotoristasOpcoes.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.nome}
+                  </option>
+                ))}
+                <option value="sem_motorista">Sem motorista</option>
+              </select>
+            </div>
+
+            {/* Responsável pelo Pagamento */}
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1">
+                Responsável pelo Pagamento
+              </label>
+              <select
+                value={filtroResponsavel}
+                onChange={(e) => {
+                  setFiltroResponsavel(
+                    e.target.value as ResponsavelFiltroAbastecimento
+                  );
+                  setPaginaAtual(1);
+                }}
+                className="w-full h-9 px-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+              >
+                <option value="todos">Todos os responsáveis</option>
+                <option value="minha_despesa">Minha despesa</option>
+                <option value="frigorifico_desconta">
+                  Frigorífico desconta
+                </option>
+                <option value="frigorifico_ressarce">
+                  Frigorífico ressarce
+                </option>
+              </select>
+            </div>
+
+            {/* Status */}
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1">
+                Status
+              </label>
+              <select
+                value={filtroStatus}
+                onChange={(e) => {
+                  setFiltroStatus(e.target.value as StatusFiltroAbastecimento);
+                  setPaginaAtual(1);
+                }}
+                className="w-full h-9 px-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+              >
+                <option value="todos">Todos os status</option>
+                <option value="pendente">Pendente</option>
+                <option value="pago">Pago</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Lista de cards ou estado vazio */}
-      {gruposCards.length === 0 ? (
+      {abastecimentos.length === 0 ? (
         <div className="flex flex-col items-center justify-center min-h-[38vh] border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/40 dark:bg-slate-900/30 rounded-xl p-8 text-center">
           <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 mb-3">
             <Truck className="w-6 h-6" />
@@ -251,6 +484,19 @@ export function AbastecimentosCaminhao({
           <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md mt-1">
             Clique em &ldquo;Novo Abastecimento&rdquo; acima para registrar o primeiro lançamento deste veículo.
           </p>
+        </div>
+      ) : gruposCards.length === 0 ? (
+        <div className="flex flex-col items-center justify-center min-h-[28vh] border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/40 dark:bg-slate-900/30 rounded-xl p-8 text-center space-y-3">
+          <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
+            Nenhum abastecimento corresponde aos filtros selecionados
+          </p>
+          <button
+            type="button"
+            onClick={limparFiltros}
+            className="h-9 px-4 rounded-lg text-xs font-semibold border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+          >
+            Limpar filtros
+          </button>
         </div>
       ) : (
         <div className="space-y-3.5">
@@ -272,7 +518,7 @@ export function AbastecimentosCaminhao({
                 onEditar={abrirEdicao}
                 onEditarJson={(item) => setAbastecimentoJsonEmEdicao(item)}
                 onArquivar={handleArquivar}
-                onExcluir={() => handleExcluir(grupo.itens)}
+                onExcluir={() => handleExcluir([ab.id])}
               />
             );
           })}

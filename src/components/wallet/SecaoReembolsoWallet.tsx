@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, TrendingUp, Archive } from 'lucide-react';
+import { Plus, TrendingUp, Archive, Filter, RotateCcw } from 'lucide-react';
 import {
   lerDadosWallet,
   alternarArquivamentoReembolsoWallet,
@@ -19,6 +19,14 @@ import { CardLancamentoWallet } from './CardLancamentoWallet';
 
 const ITENS_POR_PAGINA = 10;
 
+const CATEGORIAS_WALLET_OPCOES = [
+  { value: 'abastecimento', label: 'Abastecimento' },
+  { value: 'animais_perdidos', label: 'Animais Perdidos' },
+  { value: 'pedagio', label: 'Pedágio' },
+  { value: 'frete', label: 'Frete' },
+  { value: 'outro', label: 'Outro' },
+];
+
 export function SecaoReembolsoWallet() {
   const [aba, setAba] = useState<'ativos' | 'arquivados'>('ativos');
   const [modalNovoAberto, setModalNovoAberto] = useState(false);
@@ -30,6 +38,12 @@ export function SecaoReembolsoWallet() {
     () => lerDadosWallet().reembolsos
   );
   const [paginaAtual, setPaginaAtual] = useState(1);
+
+  const [filtroDataInicio, setFiltroDataInicio] = useState<string>('');
+  const [filtroDataFim, setFiltroDataFim] = useState<string>('');
+  const [filtroPagadorChave, setFiltroPagadorChave] = useState<string>('');
+  const [filtroCaminhaoId, setFiltroCaminhaoId] = useState<string>('');
+  const [filtroCategoria, setFiltroCategoria] = useState<string>('');
 
   const carregar = () => {
     setTodosReembolsos(lerDadosWallet().reembolsos);
@@ -45,33 +59,110 @@ export function SecaoReembolsoWallet() {
     };
   }, []);
 
-  const { mapaPagadores, mapaCaminhoes } = useMemo(() => {
+  const {
+    mapaPagadores,
+    opcoesPagadores,
+    mapaCaminhoes,
+    opcoesCaminhoes,
+  } = useMemo(() => {
     const pMap = new Map<string, string>();
+    const pOpcoes: { chave: string; nome: string }[] = [];
+
     for (const f of listarFrigorificos()) {
-      pMap.set(`frigorifico:${f.id}`, f.nome);
+      const chave = `frigorifico:${f.id}`;
+      const label = `${f.nome} (Frigorífico)`;
+      pMap.set(chave, f.nome);
+      pOpcoes.push({ chave, nome: label });
     }
     for (const i of listarIntermediarios()) {
-      pMap.set(`intermediario:${i.id}`, i.nome);
+      const chave = `intermediario:${i.id}`;
+      const label = `${i.nome} (Intermediário)`;
+      pMap.set(chave, i.nome);
+      pOpcoes.push({ chave, nome: label });
     }
 
     const cMap = new Map<string, string>();
+    const cOpcoes: { id: string; nome: string }[] = [];
     for (const c of listarCaminhoes()) {
-      cMap.set(
-        String(c.id),
-        `${c.nome}${c.placa ? ` (${c.placa})` : ''}`
-      );
+      const idStr = String(c.id);
+      const label = `${c.nome}${c.placa ? ` (${c.placa})` : ''}`;
+      cMap.set(idStr, label);
+      cOpcoes.push({ id: idStr, nome: label });
     }
 
-    return { mapaPagadores: pMap, mapaCaminhoes: cMap };
+    return {
+      mapaPagadores: pMap,
+      opcoesPagadores: pOpcoes,
+      mapaCaminhoes: cMap,
+      opcoesCaminhoes: cOpcoes,
+    };
   }, [todosReembolsos]);
 
-  const reembolsosFiltrados = useMemo(() => {
-    return todosReembolsos
-      .filter((r) =>
-        aba === 'arquivados' ? Boolean(r.arquivado) : !r.arquivado
-      )
-      .sort((a, b) => b.data.localeCompare(a.data));
+  const haFiltrosAtivos = Boolean(
+    filtroDataInicio ||
+      filtroDataFim ||
+      filtroPagadorChave ||
+      filtroCaminhaoId ||
+      filtroCategoria
+  );
+
+  const limparFiltros = () => {
+    setFiltroDataInicio('');
+    setFiltroDataFim('');
+    setFiltroPagadorChave('');
+    setFiltroCaminhaoId('');
+    setFiltroCategoria('');
+    setPaginaAtual(1);
+  };
+
+  const reembolsosDaAba = useMemo(() => {
+    return todosReembolsos.filter((r) =>
+      aba === 'arquivados' ? Boolean(r.arquivado) : !r.arquivado
+    );
   }, [todosReembolsos, aba]);
+
+  const reembolsosFiltrados = useMemo(() => {
+    return reembolsosDaAba
+      .filter((r) => {
+        const dataItem = (r.data || '').slice(0, 10);
+
+        if (filtroDataInicio && (!dataItem || dataItem < filtroDataInicio)) {
+          return false;
+        }
+
+        if (filtroDataFim && (!dataItem || dataItem > filtroDataFim)) {
+          return false;
+        }
+
+        if (filtroPagadorChave) {
+          const chaveItem = `${r.pagadorTipo}:${r.pagadorId}`;
+          if (chaveItem !== filtroPagadorChave) {
+            return false;
+          }
+        }
+
+        if (filtroCaminhaoId && String(r.caminhaoId) !== filtroCaminhaoId) {
+          return false;
+        }
+
+        if (filtroCategoria) {
+          const catItem = r.tipo || 'outro';
+          if (catItem !== filtroCategoria) {
+            return false;
+          }
+        }
+
+        return true;
+      })
+      .sort((a, b) => b.data.localeCompare(a.data));
+  }, [
+    reembolsosDaAba,
+    filtroDataInicio,
+    filtroDataFim,
+    filtroPagadorChave,
+    filtroCaminhaoId,
+    filtroCategoria,
+  ]);
 
   const qtdArquivados = useMemo(
     () => todosReembolsos.filter((r) => Boolean(r.arquivado)).length,
@@ -102,14 +193,16 @@ export function SecaoReembolsoWallet() {
 
   return (
     <div className="space-y-5">
-      {/* Barra superior */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-base font-bold text-slate-900 dark:text-white">
             Reembolso
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            {reembolsosFiltrados.length} registro(s) • Total:{' '}
+            {haFiltrosAtivos
+              ? `${reembolsosFiltrados.length} de ${reembolsosDaAba.length} registro(s) • `
+              : `${reembolsosFiltrados.length} registro(s) • `}
+            Total:{' '}
             <strong className="text-slate-700 dark:text-slate-200">
               {totalAcumulado.toLocaleString('pt-BR', {
                 style: 'currency',
@@ -163,8 +256,126 @@ export function SecaoReembolsoWallet() {
         </div>
       </div>
 
-      {/* Lista de cards ou estado vazio */}
-      {reembolsosFiltrados.length === 0 ? (
+      {reembolsosDaAba.length > 0 && (
+        <div className="bg-white dark:bg-slate-900/80 rounded-xl border border-slate-200/90 dark:border-slate-800 p-4 shadow-2xs space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              <Filter className="w-3.5 h-3.5 text-brand-500" />
+              Filtros
+            </span>
+
+            {haFiltrosAtivos && (
+              <button
+                type="button"
+                onClick={limparFiltros}
+                className="inline-flex items-center gap-1 text-xs font-semibold text-brand-600 dark:text-brand-400 hover:underline cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                Limpar filtros
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1">
+                Data (De)
+              </label>
+              <input
+                type="date"
+                value={filtroDataInicio}
+                max={filtroDataFim || undefined}
+                onChange={(e) => {
+                  setFiltroDataInicio(e.target.value);
+                  setPaginaAtual(1);
+                }}
+                className="w-full h-9 px-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1">
+                Data (Até)
+              </label>
+              <input
+                type="date"
+                value={filtroDataFim}
+                min={filtroDataInicio || undefined}
+                onChange={(e) => {
+                  setFiltroDataFim(e.target.value);
+                  setPaginaAtual(1);
+                }}
+                className="w-full h-9 px-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1">
+                Pagador
+              </label>
+              <select
+                value={filtroPagadorChave}
+                onChange={(e) => {
+                  setFiltroPagadorChave(e.target.value);
+                  setPaginaAtual(1);
+                }}
+                className="w-full h-9 px-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+              >
+                <option value="">Todos os pagadores</option>
+                {opcoesPagadores.map((p) => (
+                  <option key={p.chave} value={p.chave}>
+                    {p.nome}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1">
+                Caminhão
+              </label>
+              <select
+                value={filtroCaminhaoId}
+                onChange={(e) => {
+                  setFiltroCaminhaoId(e.target.value);
+                  setPaginaAtual(1);
+                }}
+                className="w-full h-9 px-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+              >
+                <option value="">Todos os caminhões</option>
+                {opcoesCaminhoes.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.nome}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1">
+                Categoria
+              </label>
+              <select
+                value={filtroCategoria}
+                onChange={(e) => {
+                  setFiltroCategoria(e.target.value);
+                  setPaginaAtual(1);
+                }}
+                className="w-full h-9 px-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+              >
+                <option value="">Todas as categorias</option>
+                {CATEGORIAS_WALLET_OPCOES.map((cat) => (
+                  <option key={cat.value} value={cat.value}>
+                    {cat.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {reembolsosDaAba.length === 0 ? (
         <div className="flex flex-col items-center justify-center min-h-[38vh] border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/40 dark:bg-slate-900/30 rounded-xl p-8 text-center">
           <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 mb-3">
             {aba === 'arquivados' ? (
@@ -184,6 +395,19 @@ export function SecaoReembolsoWallet() {
               : 'Clique em "Novo Reembolso" acima para escolher o tipo e lançar um registro.'}
           </p>
         </div>
+      ) : reembolsosFiltrados.length === 0 ? (
+        <div className="flex flex-col items-center justify-center min-h-[28vh] border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/40 dark:bg-slate-900/30 rounded-xl p-8 text-center space-y-3">
+          <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
+            Nenhum reembolso corresponde aos filtros selecionados
+          </p>
+          <button
+            type="button"
+            onClick={limparFiltros}
+            className="h-9 px-4 rounded-lg text-xs font-semibold border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+          >
+            Limpar filtros
+          </button>
+        </div>
       ) : (
         <div className="space-y-3.5">
           {itensPaginados.map((r) => (
@@ -196,14 +420,21 @@ export function SecaoReembolsoWallet() {
                 r.pagadorId
               }
               nomeCaminhao={
-                r.caminhaoId
-                  ? mapaCaminhoes.get(String(r.caminhaoId))
+                mapaCaminhoes.get(String(r.caminhaoId)) ||
+                `Caminhão #${r.caminhaoId}`
+              }
+              onEditar={
+                !r.pagoEmRecebimentoId
+                  ? () => setReembolsoEdicao(r)
                   : undefined
               }
-              onEditar={() => setReembolsoEdicao(r)}
-              onEditarJson={() => setReembolsoJsonEdicao(r)}
+              onEditarJson={
+                !r.pagoEmRecebimentoId
+                  ? () => setReembolsoJsonEdicao(r)
+                  : undefined
+              }
               onArquivar={
-                !r.arquivado
+                !r.arquivado && !r.pagoEmRecebimentoId
                   ? () => {
                       alternarArquivamentoReembolsoWallet(r.id, true);
                       carregar();
@@ -211,17 +442,21 @@ export function SecaoReembolsoWallet() {
                   : undefined
               }
               onRestaurar={
-                r.arquivado
+                r.arquivado && !r.pagoEmRecebimentoId
                   ? () => {
                       alternarArquivamentoReembolsoWallet(r.id, false);
                       carregar();
                     }
                   : undefined
               }
-              onExcluir={() => {
-                excluirReembolsoWallet(r.id);
-                carregar();
-              }}
+              onExcluir={
+                !r.pagoEmRecebimentoId
+                  ? () => {
+                      excluirReembolsoWallet(r.id);
+                      carregar();
+                    }
+                  : undefined
+              }
             />
           ))}
 

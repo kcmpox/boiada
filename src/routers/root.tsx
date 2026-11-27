@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import {
   createRootRoute,
   Link,
@@ -22,6 +22,17 @@ import { carregarCorSalva } from '../theme';
 import { CommandPalette } from '../components/CommandPalette';
 import { DevModeProvider, useDevMode } from '../context/DevModeContext';
 import { lerWallet } from '../storage/walletStorage';
+import { listarCaminhoes } from '../storage/cadastrosStorage';
+import { LogoAnimadaBT } from '../components/LogoAnimadaBT';
+import { FaviconAnimadoBT } from '../components/FaviconAnimadoBT';
+
+function contarCaminhoesAtivos(): number {
+  try {
+    return listarCaminhoes().filter((c) => c.ativo !== false).length;
+  } catch {
+    return 0;
+  }
+}
 
 function NotFoundPage() {
   return (
@@ -57,6 +68,14 @@ function RootShell() {
     return lerWallet().saldo;
   });
 
+  const [qtdCaminhoesAtivos, setQtdCaminhoesAtivos] = useState<number>(() =>
+    contarCaminhoesAtivos()
+  );
+
+  const atualizarFrotaAtiva = useCallback(() => {
+    setQtdCaminhoesAtivos(contarCaminhoesAtivos());
+  }, []);
+
   useEffect(() => {
     carregarCorSalva();
   }, []);
@@ -70,6 +89,16 @@ function RootShell() {
       window.removeEventListener('bt-wallet-updated', atualizarSaldo);
     };
   }, []);
+
+  useEffect(() => {
+    atualizarFrotaAtiva();
+    window.addEventListener('storage', atualizarFrotaAtiva);
+    window.addEventListener('bt-cadastros-updated', atualizarFrotaAtiva);
+    return () => {
+      window.removeEventListener('storage', atualizarFrotaAtiva);
+      window.removeEventListener('bt-cadastros-updated', atualizarFrotaAtiva);
+    };
+  }, [pathname, atualizarFrotaAtiva]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -98,21 +127,24 @@ function RootShell() {
     currency: 'BRL',
   });
 
+  const textoFrotaAtiva = `${qtdCaminhoesAtivos} ${
+    qtdCaminhoesAtivos === 1 ? 'Caminhão' : 'Caminhões'
+  }`;
+
   return (
-    <div className="min-h-screen flex bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans transition-colors">
+    <div className="h-screen overflow-hidden flex bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans transition-colors">
+      <FaviconAnimadoBT />
       <CommandPalette
         onChangeTheme={setDarkMode}
         onChangeDevMode={setDevMode}
       />
 
-      <aside className="w-64 bg-slate-950 text-slate-300 flex flex-col shrink-0 border-r border-slate-800">
-        <div className="h-16 flex items-center gap-3 px-6 border-b border-slate-800/80">
-          <div className="w-9 h-9 rounded-lg bg-brand-500 flex items-center justify-center text-brand-contrast font-black shadow-sm transition-colors">
-            BT
-          </div>
+      <aside className="w-64 h-screen sticky top-0 bg-slate-950 text-slate-300 flex flex-col shrink-0 border-r border-slate-800">
+        <div className="h-16 flex items-center gap-3 px-6 border-b border-slate-800/80 shrink-0">
+          <LogoAnimadaBT />
           <div className="flex flex-col">
             <span className="text-sm font-bold text-white tracking-tight leading-none">
-              Bacchiega
+              Elmo.o Boiada
             </span>
             <span className="text-[11px] text-slate-400 font-medium mt-1">
               Transporte Boiadeiro
@@ -120,7 +152,7 @@ function RootShell() {
           </div>
         </div>
 
-        <div className="flex-1 py-6 px-3 space-y-1">
+        <div className="flex-1 overflow-y-auto py-6 px-3 space-y-1">
           <div className="px-3 mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
             Menu Principal
           </div>
@@ -146,7 +178,7 @@ function RootShell() {
           })}
         </div>
 
-        <div className="px-3 pb-3 space-y-2.5">
+        <div className="px-3 pb-3 pt-2 space-y-2.5 shrink-0 border-t border-slate-900">
           {/* Card clicável do Saldo da Carteira -> /wallet */}
           <Link
             to="/wallet"
@@ -176,7 +208,7 @@ function RootShell() {
           <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 text-xs space-y-2">
             <div className="flex items-center justify-between text-slate-400">
               <span>Frota Ativa</span>
-              <span className="text-white font-semibold">2 Caminhões</span>
+              <span className="text-white font-semibold">{textoFrotaAtiva}</span>
             </div>
             <div className="flex items-center gap-2 text-slate-400 pt-1 border-t border-slate-800">
               <FolderSync className="w-3.5 h-3.5 text-brand-500 shrink-0" />
@@ -186,7 +218,7 @@ function RootShell() {
         </div>
       </aside>
 
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
         <header className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200/80 dark:border-slate-800 px-8 flex items-center justify-between shrink-0 transition-colors">
           <div className="text-sm text-slate-500 dark:text-slate-400">
             Sistema de Controle Operacional e Financeiro
@@ -230,8 +262,10 @@ function RootShell() {
           </div>
         </header>
 
-        <main className="flex-1 p-8 max-w-7xl w-full mx-auto">
-          <Outlet />
+        <main className="flex-1 overflow-y-auto p-8">
+          <div className="max-w-7xl w-full mx-auto">
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>

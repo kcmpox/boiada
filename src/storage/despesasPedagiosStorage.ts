@@ -1,3 +1,5 @@
+import { despesaJaFoiPaga } from './recebimentosStorage';
+
 export type ResponsavelPagamentoPedagio =
   | 'minha_despesa'
   | 'frigorifico_desconta'
@@ -49,17 +51,36 @@ export function lerDespesasPedagios(): DespesaPedagio[] {
 }
 
 export function salvarDespesasPedagios(lista: DespesaPedagio[]): void {
-  localStorage.setItem(CHAVE_STORAGE, JSON.stringify(lista));
+  const atuais = lerDespesasPedagios();
+  const mapaAtuais = new Map(atuais.map((item) => [String(item.id), item]));
+  const idsNovos = new Set(lista.map((item) => String(item.id)));
+
+  const listaFinal = lista.map((item) => {
+    if (despesaJaFoiPaga(item.id) && mapaAtuais.has(String(item.id))) {
+      return mapaAtuais.get(String(item.id))!;
+    }
+    return item;
+  });
+
+  for (const antigo of atuais) {
+    if (despesaJaFoiPaga(antigo.id) && !idsNovos.has(String(antigo.id))) {
+      listaFinal.push(antigo);
+    }
+  }
+
+  localStorage.setItem(CHAVE_STORAGE, JSON.stringify(listaFinal));
   window.dispatchEvent(new Event('storage'));
 }
 
 export function salvarDespesaPedagio(
   dados: Omit<DespesaPedagio, 'id' | 'criadoEm'> & { id?: string }
-): DespesaPedagio {
+): DespesaPedagio | undefined {
   const atual = lerDespesasPedagios();
   const agora = new Date().toISOString();
 
   if (dados.id) {
+    if (despesaJaFoiPaga(dados.id)) return undefined;
+
     let atualizado: DespesaPedagio | null = null;
     const novaLista = atual.map((item) => {
       if (item.id !== dados.id) return item;
@@ -96,6 +117,8 @@ export function vincularViagemDespesaPedagio(
   passagemId: string,
   viagemId: string
 ): void {
+  if (despesaJaFoiPaga(passagemId)) return;
+
   const atual = lerDespesasPedagios();
   const novaLista = atual.map((item) =>
     item.id === passagemId
@@ -114,6 +137,8 @@ export function confirmarPedagioSemViagem(
   passagemId: string,
   confirmado: boolean
 ): void {
+  if (despesaJaFoiPaga(passagemId)) return;
+
   const atual = lerDespesasPedagios();
   const novaLista = atual.map((item) =>
     item.id === passagemId
@@ -131,6 +156,8 @@ export function salvarDespesaPedagioJson(
   idOriginal: string,
   registroEditado: DespesaPedagio
 ): void {
+  if (despesaJaFoiPaga(idOriginal)) return;
+
   const atual = lerDespesasPedagios();
   const novaLista = atual.map((item) =>
     item.id === idOriginal
@@ -148,6 +175,8 @@ export function alternarArquivamentoDespesaPedagio(
   id: string,
   arquivado: boolean
 ): void {
+  if (despesaJaFoiPaga(id)) return;
+
   const atual = lerDespesasPedagios();
   const novaLista = atual.map((item) =>
     item.id === id
@@ -158,6 +187,8 @@ export function alternarArquivamentoDespesaPedagio(
 }
 
 export function excluirDespesaPedagio(id: string): void {
+  if (despesaJaFoiPaga(id)) return;
+
   const atual = lerDespesasPedagios();
   salvarDespesasPedagios(atual.filter((item) => item.id !== id));
 }

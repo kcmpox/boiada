@@ -2,6 +2,7 @@ import type {
   TipoEntidadeTabela,
   BaseQuilometragemTabela,
 } from './tabelasPrecoStorage';
+import { viagemJaFoiPaga } from './recebimentosStorage';
 
 export type TipoGado = 'boi_gordo' | 'boi_magro';
 export type ModoDistanciaViagem = 'manual' | 'hodometro';
@@ -110,7 +111,32 @@ export function listarViagens(): Viagem[] {
 }
 
 export function salvarViagens(lista: Viagem[]): void {
-  localStorage.setItem(STORAGE_ATIVAS, JSON.stringify(lista));
+  const atuais = listarViagens();
+  const mapaAtuais = new Map(atuais.map((v) => [String(v.id), v]));
+  const idsNovos = new Set(lista.map((v) => String(v.id)));
+
+  // Preserva viagens já pagas contra edição ou exclusão acidental
+  const protegidas: Viagem[] = [];
+  for (const antiga of atuais) {
+    if (viagemJaFoiPaga(antiga.id)) {
+      protegidas.push(antiga);
+    }
+  }
+
+  const listaFinal = lista.map((item) => {
+    if (viagemJaFoiPaga(item.id) && mapaAtuais.has(String(item.id))) {
+      return mapaAtuais.get(String(item.id))!;
+    }
+    return item;
+  });
+
+  for (const p of protegidas) {
+    if (!idsNovos.has(String(p.id))) {
+      listaFinal.push(p);
+    }
+  }
+
+  localStorage.setItem(STORAGE_ATIVAS, JSON.stringify(listaFinal));
 }
 
 export function listarViagensArquivadas(): Viagem[] {
@@ -129,11 +155,15 @@ export function salvarViagensArquivadas(lista: Viagem[]): void {
 
 export function arquivarViagem(viagemId: string): Viagem[] {
   const ativas = listarViagens();
+  if (viagemJaFoiPaga(viagemId)) {
+    return ativas;
+  }
+
   const alvo = ativas.find((v) => v.id === viagemId);
   if (!alvo) return ativas;
 
   const restantes = ativas.filter((v) => v.id !== viagemId);
-  salvarViagens(restantes);
+  localStorage.setItem(STORAGE_ATIVAS, JSON.stringify(restantes));
 
   const arquivadas = listarViagensArquivadas();
   const registroArquivado: Viagem = {
@@ -155,7 +185,21 @@ export function restaurarViagemArquivada(viagemId: string): Viagem[] {
 
   const { dataArquivamento: _, ...viagemRestaurada } = alvo;
   const ativas = listarViagens();
-  salvarViagens([viagemRestaurada, ...ativas]);
+  localStorage.setItem(
+    STORAGE_ATIVAS,
+    JSON.stringify([viagemRestaurada, ...ativas])
+  );
 
   return restantesArquivadas;
+}
+
+export function excluirViagem(viagemId: string): Viagem[] {
+  const ativas = listarViagens();
+  if (viagemJaFoiPaga(viagemId)) {
+    return ativas;
+  }
+
+  const restantes = ativas.filter((v) => v.id !== viagemId);
+  localStorage.setItem(STORAGE_ATIVAS, JSON.stringify(restantes));
+  return restantes;
 }

@@ -241,6 +241,11 @@ export function SecaoSaidaChegada({
         ? {
             ...v,
             statusSaidaChegada: 'ignorado' as const,
+            statusAnimaisPerdidos: 'concluido' as const,
+            houvePerdaAnimais: v.houvePerdaAnimais ?? false,
+            quantidadeAnimaisPerdidos: v.quantidadeAnimaisPerdidos ?? 0,
+            valorUnitarioAnimalPerdido: v.valorUnitarioAnimalPerdido ?? 0,
+            valorTotalAnimaisPerdidos: v.valorTotalAnimaisPerdidos ?? 0,
           }
         : v
     );

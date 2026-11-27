@@ -1,3 +1,5 @@
+import { despesaJaFoiPaga } from './recebimentosStorage';
+
 export type CategoriaManutencao =
   | 'Borracharia'
   | 'Elétrica'
@@ -57,17 +59,36 @@ export function lerManutencoes(): Manutencao[] {
 }
 
 export function salvarManutencoes(lista: Manutencao[]): void {
-  localStorage.setItem(CHAVE_STORAGE, JSON.stringify(lista));
+  const atuais = lerManutencoes();
+  const mapaAtuais = new Map(atuais.map((item) => [String(item.id), item]));
+  const idsNovos = new Set(lista.map((item) => String(item.id)));
+
+  const listaFinal = lista.map((item) => {
+    if (despesaJaFoiPaga(item.id) && mapaAtuais.has(String(item.id))) {
+      return mapaAtuais.get(String(item.id))!;
+    }
+    return item;
+  });
+
+  for (const antigo of atuais) {
+    if (despesaJaFoiPaga(antigo.id) && !idsNovos.has(String(antigo.id))) {
+      listaFinal.push(antigo);
+    }
+  }
+
+  localStorage.setItem(CHAVE_STORAGE, JSON.stringify(listaFinal));
   window.dispatchEvent(new Event('storage'));
 }
 
 export function salvarManutencao(
   dados: Omit<Manutencao, 'id' | 'criadoEm'> & { id?: string }
-): Manutencao {
+): Manutencao | undefined {
   const atual = lerManutencoes();
   const agora = new Date().toISOString();
 
   if (dados.id) {
+    if (despesaJaFoiPaga(dados.id)) return undefined;
+
     let atualizado: Manutencao | null = null;
     const novaLista = atual.map((item) => {
       if (item.id !== dados.id) return item;
@@ -101,6 +122,8 @@ export function salvarManutencaoJson(
   idOriginal: string,
   registroEditado: Manutencao
 ): void {
+  if (despesaJaFoiPaga(idOriginal)) return;
+
   const atual = lerManutencoes();
   const novaLista = atual.map((item) =>
     item.id === idOriginal
@@ -118,6 +141,8 @@ export function alternarArquivamentoManutencao(
   id: string,
   arquivada: boolean
 ): void {
+  if (despesaJaFoiPaga(id)) return;
+
   const atual = lerManutencoes();
   const novaLista = atual.map((item) =>
     item.id === id
@@ -128,6 +153,8 @@ export function alternarArquivamentoManutencao(
 }
 
 export function excluirManutencao(id: string): void {
+  if (despesaJaFoiPaga(id)) return;
+
   const atual = lerManutencoes();
   salvarManutencoes(atual.filter((item) => item.id !== id));
 }

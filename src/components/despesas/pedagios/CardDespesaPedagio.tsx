@@ -11,11 +11,13 @@ import {
   Radio,
   MapPin,
   Route,
+  Lock,
 } from 'lucide-react';
 import {
   type DespesaPedagio,
   type ResponsavelPagamentoPedagio,
 } from '../../../storage/despesasPedagiosStorage';
+import { despesaJaFoiPaga } from '../../../storage/recebimentosStorage';
 import { useDevMode } from '../../../context/DevModeContext';
 
 interface CardDespesaPedagioProps {
@@ -71,6 +73,7 @@ export function CardDespesaPedagio({
   onExcluir,
 }: CardDespesaPedagioProps) {
   const { devMode } = useDevMode();
+  const bloqueadoPorPagamento = despesaJaFoiPaga(passagem.id);
   const respInfo =
     INFO_RESPONSAVEL[passagem.responsavelPagamento] ||
     INFO_RESPONSAVEL.minha_despesa;
@@ -101,6 +104,16 @@ export function CardDespesaPedagio({
             >
               {respInfo.label}
             </span>
+
+            {bloqueadoPorPagamento && (
+              <span
+                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25"
+                title="Este pedágio já foi incluído num recebimento e não pode ser alterado"
+              >
+                <Lock className="w-3 h-3" />
+                Pago
+              </span>
+            )}
 
             <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-600 dark:text-slate-300">
               <Calendar className="w-3.5 h-3.5 text-slate-400" />
@@ -139,58 +152,60 @@ export function CardDespesaPedagio({
         </div>
 
         {/* Botões de Ação */}
-        <div className="flex items-center gap-1 ml-auto shrink-0">
-          {devMode && onEditarJson && (
-            <button
-              type="button"
-              onClick={() => onEditarJson(passagem)}
-              title="Editar JSON (DevMode)"
-              className="p-2 rounded-lg text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-500/10 transition-colors cursor-pointer"
-            >
-              <Code2 className="w-4 h-4" />
-            </button>
-          )}
-
-          <button
-            type="button"
-            onClick={() => onEditar(passagem)}
-            title="Editar passagem"
-            className="p-2 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-          >
-            <Pencil className="w-4 h-4" />
-          </button>
-
-          {passagem.arquivado && onRestaurar ? (
-            <button
-              type="button"
-              onClick={() => onRestaurar(passagem)}
-              title="Restaurar passagem"
-              className="p-2 rounded-lg text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-colors cursor-pointer"
-            >
-              <RotateCcw className="w-4 h-4" />
-            </button>
-          ) : (
-            onArquivar && (
+        {!bloqueadoPorPagamento && (
+          <div className="flex items-center gap-1 ml-auto shrink-0">
+            {devMode && onEditarJson && (
               <button
                 type="button"
-                onClick={() => onArquivar(passagem)}
-                title="Arquivar passagem"
-                className="p-2 rounded-lg text-slate-500 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-colors cursor-pointer"
+                onClick={() => onEditarJson(passagem)}
+                title="Editar JSON (DevMode)"
+                className="p-2 rounded-lg text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-500/10 transition-colors cursor-pointer"
               >
-                <Archive className="w-4 h-4" />
+                <Code2 className="w-4 h-4" />
               </button>
-            )
-          )}
+            )}
 
-          <button
-            type="button"
-            onClick={() => onExcluir(passagem)}
-            title="Excluir passagem"
-            className="p-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors cursor-pointer"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
-        </div>
+            <button
+              type="button"
+              onClick={() => onEditar(passagem)}
+              title="Editar passagem"
+              className="p-2 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+            >
+              <Pencil className="w-4 h-4" />
+            </button>
+
+            {passagem.arquivado && onRestaurar ? (
+              <button
+                type="button"
+                onClick={() => onRestaurar(passagem)}
+                title="Restaurar passagem"
+                className="p-2 rounded-lg text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-colors cursor-pointer"
+              >
+                <RotateCcw className="w-4 h-4" />
+              </button>
+            ) : (
+              onArquivar && (
+                <button
+                  type="button"
+                  onClick={() => onArquivar(passagem)}
+                  title="Arquivar passagem"
+                  className="p-2 rounded-lg text-slate-500 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-colors cursor-pointer"
+                >
+                  <Archive className="w-4 h-4" />
+                </button>
+              )
+            )}
+
+            <button
+              type="button"
+              onClick={() => onExcluir(passagem)}
+              title="Excluir passagem"
+              className="p-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors cursor-pointer"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Corpo: Praça + Detalhes + Valor */}

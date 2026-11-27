@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Milestone } from 'lucide-react';
+import { Plus, Milestone, Filter, RotateCcw } from 'lucide-react';
 import {
   type DespesaPedagio,
+  type ResponsavelPagamentoPedagio,
   lerDespesasPedagios,
   alternarArquivamentoDespesaPedagio,
   excluirDespesaPedagio,
@@ -10,12 +11,23 @@ import {
   listarCaminhoes,
   listarMotoristas,
 } from '../../../storage/cadastrosStorage';
+import { despesaJaFoiPaga } from '../../../storage/recebimentosStorage';
 import { Paginacao } from '../../Paginacao';
 import { ModalNovoPedagio } from './ModalNovoPedagio';
 import { ModalEditarJsonDespesaPedagio } from '../../json_editor/ModalEditarJsonDespesaPedagio';
 import { CardDespesaPedagio } from './CardDespesaPedagio';
 
 const ITENS_POR_PAGINA = 10;
+
+type StatusFiltroPedagio = 'todos' | 'pendente' | 'pago';
+type ResponsavelFiltroPedagio = 'todos' | ResponsavelPagamentoPedagio;
+
+function extrairDataIso(dataHora: string): string {
+  if (!dataHora) return '';
+  if (dataHora.includes('T')) return dataHora.split('T')[0] || '';
+  if (dataHora.includes(' ')) return dataHora.split(' ')[0] || '';
+  return dataHora.slice(0, 10);
+}
 
 export function TodosPedagios() {
   const [modalAberto, setModalAberto] = useState(false);
@@ -25,6 +37,14 @@ export function TodosPedagios() {
     useState<DespesaPedagio | null>(null);
   const [passagens, setPassagens] = useState<DespesaPedagio[]>([]);
   const [paginaAtual, setPaginaAtual] = useState(1);
+
+  // Estados dos filtros
+  const [filtroDataInicio, setFiltroDataInicio] = useState<string>('');
+  const [filtroDataFim, setFiltroDataFim] = useState<string>('');
+  const [filtroResponsavel, setFiltroResponsavel] =
+    useState<ResponsavelFiltroPedagio>('todos');
+  const [filtroStatus, setFiltroStatus] =
+    useState<StatusFiltroPedagio>('todos');
 
   const carregar = () => {
     const ativas = lerDespesasPedagios()
@@ -36,7 +56,11 @@ export function TodosPedagios() {
   useEffect(() => {
     carregar();
     window.addEventListener('storage', carregar);
-    return () => window.removeEventListener('storage', carregar);
+    window.addEventListener('bt-recebimentos-updated', carregar);
+    return () => {
+      window.removeEventListener('storage', carregar);
+      window.removeEventListener('bt-recebimentos-updated', carregar);
+    };
   }, []);
 
   const { mapaCaminhoes, mapaMotoristas } = useMemo(() => {
@@ -56,9 +80,53 @@ export function TodosPedagios() {
     return { mapaCaminhoes: caminhoesMap, mapaMotoristas: motoristasMap };
   }, [passagens]);
 
+  const haFiltrosAtivos = Boolean(
+    filtroDataInicio ||
+      filtroDataFim ||
+      filtroResponsavel !== 'todos' ||
+      filtroStatus !== 'todos'
+  );
+
+  const limparFiltros = () => {
+    setFiltroDataInicio('');
+    setFiltroDataFim('');
+    setFiltroResponsavel('todos');
+    setFiltroStatus('todos');
+    setPaginaAtual(1);
+  };
+
+  const passagensFiltradas = useMemo(() => {
+    return passagens.filter((p) => {
+      const dataItem = extrairDataIso(p.dataHora);
+
+      if (filtroDataInicio && (!dataItem || dataItem < filtroDataInicio)) {
+        return false;
+      }
+
+      if (filtroDataFim && (!dataItem || dataItem > filtroDataFim)) {
+        return false;
+      }
+
+      if (
+        filtroResponsavel !== 'todos' &&
+        p.responsavelPagamento !== filtroResponsavel
+      ) {
+        return false;
+      }
+
+      if (filtroStatus !== 'todos') {
+        const paga = despesaJaFoiPaga(p.id);
+        if (filtroStatus === 'pago' && !paga) return false;
+        if (filtroStatus === 'pendente' && paga) return false;
+      }
+
+      return true;
+    });
+  }, [passagens, filtroDataInicio, filtroDataFim, filtroResponsavel, filtroStatus]);
+
   const totalPaginas = Math.max(
     1,
-    Math.ceil(passagens.length / ITENS_POR_PAGINA)
+    Math.ceil(passagensFiltradas.length / ITENS_POR_PAGINA)
   );
   const paginaSegura = Math.min(paginaAtual, totalPaginas);
 
@@ -70,12 +138,12 @@ export function TodosPedagios() {
 
   const passagensPaginadas = useMemo(() => {
     const inicio = (paginaSegura - 1) * ITENS_POR_PAGINA;
-    return passagens.slice(inicio, inicio + ITENS_POR_PAGINA);
-  }, [passagens, paginaSegura]);
+    return passagensFiltradas.slice(inicio, inicio + ITENS_POR_PAGINA);
+  }, [passagensFiltradas, paginaSegura]);
 
   const totalGeral = useMemo(
-    () => passagens.reduce((acc, p) => acc + p.valor, 0),
-    [passagens]
+    () => passagensFiltradas.reduce((acc, p) => acc + p.valor, 0),
+    [passagensFiltradas]
   );
 
   const abrirNova = () => {
@@ -107,7 +175,10 @@ export function TodosPedagios() {
             Todos os Pedágios
           </h3>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            {passagens.length} passagem(ns) • Total acumulado:{' '}
+            {haFiltrosAtivos
+              ? `${passagensFiltradas.length} de ${passagens.length} passagem(ns) • `
+              : `${passagens.length} passagem(ns) • `}
+            Total acumulado:{' '}
             <strong className="text-slate-700 dark:text-slate-200">
               {totalGeral.toLocaleString('pt-BR', {
                 style: 'currency',
@@ -127,6 +198,110 @@ export function TodosPedagios() {
         </button>
       </div>
 
+      {/* Barra de Filtros */}
+      {passagens.length > 0 && (
+        <div className="bg-white dark:bg-slate-900/80 rounded-xl border border-slate-200/90 dark:border-slate-800 p-4 shadow-2xs space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              <Filter className="w-3.5 h-3.5 text-brand-500" />
+              Filtros
+            </span>
+
+            {haFiltrosAtivos && (
+              <button
+                type="button"
+                onClick={limparFiltros}
+                className="inline-flex items-center gap-1 text-xs font-semibold text-brand-600 dark:text-brand-400 hover:underline cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                Limpar filtros
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* Período: Data Inicial */}
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1">
+                Data (De)
+              </label>
+              <input
+                type="date"
+                value={filtroDataInicio}
+                max={filtroDataFim || undefined}
+                onChange={(e) => {
+                  setFiltroDataInicio(e.target.value);
+                  setPaginaAtual(1);
+                }}
+                className="w-full h-9 px-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+            </div>
+
+            {/* Período: Data Final */}
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1">
+                Data (Até)
+              </label>
+              <input
+                type="date"
+                value={filtroDataFim}
+                min={filtroDataInicio || undefined}
+                onChange={(e) => {
+                  setFiltroDataFim(e.target.value);
+                  setPaginaAtual(1);
+                }}
+                className="w-full h-9 px-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+            </div>
+
+            {/* Responsável pelo Pagamento */}
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1">
+                Responsável pelo Pagamento
+              </label>
+              <select
+                value={filtroResponsavel}
+                onChange={(e) => {
+                  setFiltroResponsavel(
+                    e.target.value as ResponsavelFiltroPedagio
+                  );
+                  setPaginaAtual(1);
+                }}
+                className="w-full h-9 px-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+              >
+                <option value="todos">Todos os responsáveis</option>
+                <option value="minha_despesa">Minha despesa</option>
+                <option value="frigorifico_desconta">
+                  Frigorífico desconta
+                </option>
+                <option value="frigorifico_ressarce">
+                  Frigorífico ressarce
+                </option>
+              </select>
+            </div>
+
+            {/* Status */}
+            <div>
+              <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1">
+                Status
+              </label>
+              <select
+                value={filtroStatus}
+                onChange={(e) => {
+                  setFiltroStatus(e.target.value as StatusFiltroPedagio);
+                  setPaginaAtual(1);
+                }}
+                className="w-full h-9 px-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+              >
+                <option value="todos">Todos os status</option>
+                <option value="pendente">Pendente</option>
+                <option value="pago">Pago</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Lista de cards ou estado vazio */}
       {passagens.length === 0 ? (
         <div className="flex flex-col items-center justify-center min-h-[38vh] border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/40 dark:bg-slate-900/30 rounded-xl p-8 text-center">
@@ -139,6 +314,19 @@ export function TodosPedagios() {
           <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md mt-1">
             Clique em &ldquo;Nova Passagem&rdquo; acima para lançar a primeira cobrança de pedágio.
           </p>
+        </div>
+      ) : passagensFiltradas.length === 0 ? (
+        <div className="flex flex-col items-center justify-center min-h-[28vh] border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/40 dark:bg-slate-900/30 rounded-xl p-8 text-center space-y-3">
+          <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
+            Nenhuma passagem de pedágio corresponde aos filtros selecionados
+          </p>
+          <button
+            type="button"
+            onClick={limparFiltros}
+            className="h-9 px-4 rounded-lg text-xs font-semibold border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+          >
+            Limpar filtros
+          </button>
         </div>
       ) : (
         <div className="space-y-3.5">
@@ -166,7 +354,7 @@ export function TodosPedagios() {
 
           <Paginacao
             paginaAtual={paginaSegura}
-            totalItens={passagens.length}
+            totalItens={passagensFiltradas.length}
             itensPorPagina={ITENS_POR_PAGINA}
             onMudarPagina={setPaginaAtual}
           />

@@ -53,7 +53,7 @@ const CATEGORIAS: CategoriaCadastro[] = [
     id: 'caminhoes',
     titulo: 'Caminhões',
     subtitulo: 'Veículos, placas e motoristas',
-    descricaoArea: 'Gerencie os caminhões boiadeiros da frota da Bacchiega Transporte.',
+    descricaoArea: 'Gerencie os caminhões boiadeiros da frota.',
     icon: Truck,
   },
   {

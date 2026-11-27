@@ -1,3 +1,5 @@
+import { despesaJaFoiPaga } from './recebimentosStorage';
+
 export type ResponsavelPagamentoAbastecimento =
   | 'minha_despesa'
   | 'frigorifico_desconta'
@@ -35,9 +37,9 @@ export interface Abastecimento {
   atualizadoEm?: string;
 }
 
-const STORAGE_KEY = 'bacchiega_abastecimentos_v1';
+const STORAGE_KEY = 'bt_despesas_abastecimentos';
 const VIAGENS_CONFIRMADAS_SEM_ABASTECIMENTO_KEY =
-  'bacchiega_viagens_sem_abastecimento_confirmadas_v1';
+  'viagens_sem_abastecimento_confirmadas_v1';
 
 export function lerAbastecimentos(): Abastecimento[] {
   try {
@@ -68,6 +70,8 @@ export function atualizarAbastecimento(
   id: string,
   dados: Omit<Abastecimento, 'id' | 'criadoEm' | 'arquivado'>
 ): Abastecimento | undefined {
+  if (despesaJaFoiPaga(id)) return undefined;
+
   const lista = lerAbastecimentos();
   let atualizado: Abastecimento | undefined;
 
@@ -93,6 +97,8 @@ export function alternarArquivamentoAbastecimento(
   id: string,
   arquivado: boolean
 ): void {
+  if (despesaJaFoiPaga(id)) return;
+
   const lista = lerAbastecimentos();
   const novaLista = lista.map((item) =>
     String(item.id) === String(id)
@@ -106,7 +112,9 @@ export function alternarArquivamentoAbastecimento(
 export function salvarAbastecimentoJson(
   idOriginal: string,
   objetoEditado: Abastecimento
-): Abastecimento {
+): Abastecimento | undefined {
+  if (despesaJaFoiPaga(idOriginal)) return undefined;
+
   const lista = lerAbastecimentos();
   const registroFinal: Abastecimento = {
     ...objetoEditado,
@@ -121,6 +129,18 @@ export function salvarAbastecimentoJson(
   localStorage.setItem(STORAGE_KEY, JSON.stringify(novaLista));
   window.dispatchEvent(new Event('storage'));
   return registroFinal;
+}
+
+export function excluirAbastecimentosPorIds(ids: string[]): void {
+  const permitidos = new Set(
+    ids.map(String).filter((id) => !despesaJaFoiPaga(id))
+  );
+  if (permitidos.size === 0) return;
+
+  const atual = lerAbastecimentos();
+  const restante = atual.filter((item) => !permitidos.has(String(item.id)));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(restante));
+  window.dispatchEvent(new Event('storage'));
 }
 
 export function obterUltimoHodometroCaminhao(
@@ -184,14 +204,5 @@ export function desconfirmarViagemSemAbastecimento(viagemId: string): void {
     VIAGENS_CONFIRMADAS_SEM_ABASTECIMENTO_KEY,
     JSON.stringify(Array.from(atuais))
   );
-  window.dispatchEvent(new Event('storage'));
-}
-
-export function excluirAbastecimentosPorIds(ids: string[]): void {
-  const conjunto = new Set(ids);
-  const atual = lerAbastecimentos();
-  const restante = atual.filter((item) => !conjunto.has(item.id));
-  // Use aqui a mesma chave/função de gravação do seu abastecimentosStorage.ts
-  localStorage.setItem('bt_despesas_abastecimentos', JSON.stringify(restante));
   window.dispatchEvent(new Event('storage'));
 }

@@ -58,7 +58,10 @@ export function ModalEditarLancamentoWallet({
     return [...inters, ...frigs];
   }, [registro]);
 
-  const caminhoes = useMemo(() => listarCaminhoes(), [registro]);
+  const caminhoes = useMemo(
+    () => listarCaminhoes().filter((c) => c.ativo !== false),
+    [registro]
+  );
 
   const [tipo, setTipo] = useState<string>('outro');
   const [pagadorChave, setPagadorChave] = useState('');
@@ -73,7 +76,7 @@ export function ModalEditarLancamentoWallet({
     setErro('');
     setTipo(registro.tipo || 'outro');
     setPagadorChave(`${registro.pagadorTipo}:${registro.pagadorId}`);
-    setCaminhaoId(registro.caminhaoId || '');
+    setCaminhaoId(registro.caminhaoId ? String(registro.caminhaoId) : '');
     setData(registro.data || '');
     setDescricao(registro.descricao || '');
     setValor(registro.valor !== undefined ? String(registro.valor) : '');
@@ -99,6 +102,10 @@ export function ModalEditarLancamentoWallet({
       setErro('Selecione um pagador.');
       return;
     }
+    if (!caminhaoId) {
+      setErro('Selecione um caminhão.');
+      return;
+    }
     if (!data) {
       setErro('Informe a data.');
       return;
@@ -113,7 +120,7 @@ export function ModalEditarLancamentoWallet({
         tipo: tipo as TipoDescontoWallet,
         pagadorTipo: pagador.tipo,
         pagadorId: pagador.id,
-        caminhaoId: caminhaoId || undefined,
+        caminhaoId,
         data,
         descricao: descricao.trim(),
         valor: Number(num.toFixed(2)),
@@ -123,7 +130,7 @@ export function ModalEditarLancamentoWallet({
         tipo: tipo as TipoReembolsoWallet,
         pagadorTipo: pagador.tipo,
         pagadorId: pagador.id,
-        caminhaoId: caminhaoId || undefined,
+        caminhaoId,
         data,
         descricao: descricao.trim(),
         valor: Number(num.toFixed(2)),
@@ -219,14 +226,15 @@ export function ModalEditarLancamentoWallet({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                Caminhão
+                Caminhão *
               </label>
               <select
                 value={caminhaoId}
                 onChange={(e) => setCaminhaoId(e.target.value)}
+                required
                 className="w-full h-10 px-3 rounded-lg text-sm bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800"
               >
-                <option value="">Selecione um caminhão..</option>
+                <option value="">Selecione um caminhão...</option>
                 {caminhoes.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.nome} {c.placa ? `(${c.placa})` : ''}
